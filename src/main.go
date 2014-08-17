@@ -5,8 +5,7 @@ import (
 )
 
 func main() {
-	go RoomManager.ServeManager()
+	var manager = RoomManager.ServeManager()
+	manager.Run()
 	return
 }
-
-

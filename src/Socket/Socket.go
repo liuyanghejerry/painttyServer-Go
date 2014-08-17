@@ -2,10 +2,12 @@ package Socket
 
 import "net"
 import "time"
+import "fmt"
 
 type SocketClient struct {
 	PackageChan chan Package
 	con         *net.TCPConn
+	GoingClose  chan bool
 }
 
 func (c *SocketClient) writeRaw(data []byte) (int, error) {
@@ -14,7 +16,7 @@ func (c *SocketClient) writeRaw(data []byte) (int, error) {
 }
 
 func (c *SocketClient) sendPack(data []byte) (int, error) {
-	return c.writeRaw(data)
+	return c.writeRaw(protocolPack(data))
 }
 
 func (c *SocketClient) SendDataPack(data []byte) (int, error) {
@@ -71,27 +73,33 @@ func (c *SocketClient) Close() error {
 
 func MakeSocketClient(con *net.TCPConn) SocketClient {
 	con.SetReadDeadline(time.Now().Add(20 * time.Second))
-	client := SocketClient{make(chan Package), con}
-	goingClose := make(chan bool, 1)
+	client := SocketClient{
+		make(chan Package),
+		con,
+		make(chan bool, 1),
+	}
 	reader := NewSocketReader()
 
 	go func() {
 		for {
 			select {
-			case <-goingClose:
+			case <-client.GoingClose:
 				// the connection is going to close
+				client.GoingClose <- true // feed to other goroutines
 				return
 			default:
 				var buffer []byte = make([]byte, 128)
 				outBytes, err := con.Read(buffer)
-				con.SetReadDeadline(time.Now().Add(10 * time.Second))
+				con.SetReadDeadline(time.Now().Add(60 * time.Second))
 				if err != nil {
+					fmt.Println("client closed")
 					con.Close()
+					client.GoingClose <- true
 				}
 				if outBytes == 0 {
 					time.Sleep(1 * time.Second)
 				} else {
-					reader.OnData(buffer)
+					reader.OnData(buffer[0:outBytes])
 				}
 			}
 
@@ -100,7 +108,8 @@ func MakeSocketClient(con *net.TCPConn) SocketClient {
 	go func() {
 		for {
 			select {
-			case <-goingClose:
+			case <-client.GoingClose:
+				client.GoingClose <- true
 				// the connection is going to close
 				return
 			case pkg := <-reader.PackageChan:

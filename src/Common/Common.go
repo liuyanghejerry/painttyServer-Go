@@ -1,7 +1,7 @@
 package Common
 
 import "bytes"
-import "compress/flate"
+import "compress/zlib"
 import "io"
 
 func QCompress(data []byte) ([]byte, error) {
@@ -15,10 +15,7 @@ func QCompress(data []byte) ([]byte, error) {
 
 	var in bytes.Buffer
 
-	w, err := flate.NewWriter(&in, -1)
-	if err != nil {
-		return []byte{}, err
-	}
+	w := zlib.NewWriter(&in)
 	w.Write(data)
 	w.Close()
 
@@ -30,7 +27,10 @@ func QCompress(data []byte) ([]byte, error) {
 func QUncompress(data []byte) ([]byte, error) {
 	var resized = bytes.NewBuffer(data[4:])
 	var tmp bytes.Buffer
-	r := flate.NewReader(resized)
+	r, err := zlib.NewReader(resized)
+	if err != nil {
+		return []byte{}, err
+	}
 	io.Copy(&tmp, r)
 	r.Close()
 
