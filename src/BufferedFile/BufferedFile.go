@@ -7,9 +7,9 @@ import "errors"
 //import "fmt"
 
 type BufferedFileOption struct {
-	fileName   string
-	writeCycle time.Duration //  60*1000 // in milliseconds
-	bufferSize int           //  1024*1024 // in bytes
+	FileName   string
+	WriteCycle time.Duration //  60*1000 // in milliseconds
+	BufferSize int           //  1024*1024 // in bytes
 }
 
 type BufferedFile struct {
@@ -22,8 +22,12 @@ type BufferedFile struct {
 	goingClose chan bool
 }
 
+func (f *BufferedFile) WholeSize() int64 {
+	return f.wholeSize
+}
+
 func (f *BufferedFile) openForRead() error {
-	file, err := os.OpenFile(f.option.fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	file, err := os.OpenFile(f.option.FileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 
 	if err != nil {
 		return err
@@ -54,7 +58,7 @@ func (f *BufferedFile) startWriteTimer() error {
 				if err := f.Sync(); err != nil {
 					panic(err)
 				}
-				time.Sleep(f.option.writeCycle * time.Millisecond)
+				time.Sleep(f.option.WriteCycle * time.Millisecond)
 			}
 		}
 	}()
@@ -63,7 +67,7 @@ func (f *BufferedFile) startWriteTimer() error {
 
 func (f *BufferedFile) Sync() error {
 	_, err := f.file.Write(f.buffer[0:f.waterMark])
-	f.buffer = make([]byte, f.option.bufferSize) // optional, may re-use
+	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
 	f.fileSize += int64(f.waterMark)
 	f.waterMark = 0
 	return err
@@ -169,7 +173,7 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
 func MakeBufferedFile(option BufferedFileOption) (BufferedFile, error) {
 	var bufFile = BufferedFile{
 		option,
-		make([]byte, option.bufferSize),
+		make([]byte, option.BufferSize),
 		0,
 		0,
 		0,
