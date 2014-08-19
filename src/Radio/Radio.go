@@ -9,7 +9,7 @@ type RadioTaskList struct {
 }
 
 type RadioChunk interface {
-	special()
+	special() // in case others may mis-use this interface
 }
 
 type RAMChunk struct {
@@ -64,6 +64,49 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		list.tasks = append(list.tasks, chunks...)
 	}
 	r.clients[client] = list
+}
+
+// SingleSend expected Buffer that send to one specific Client but doesn't record.
+func (r *Radio) SingleSend(data []byte, client *Socket.SocketClient) {
+	value, ok := r.clients[client]
+	if !ok {
+		return
+	}
+	value = appendToPendings(RAMChunk{
+		data,
+	}, value)
+}
+
+// Send expected Buffer that send to every Client but doesn't record.
+func (r *Radio) Send(data []byte) {
+	for _, value := range r.clients {
+		//fmt.Println("Key:", key, "Value:", value)
+		value = appendToPendings(RAMChunk{
+			data,
+		}, value)
+	}
+}
+
+// Write expected Buffer that send to every Client and record data.
+func (r *Radio) Write(data []byte) {
+	var oldPos = r.file.WholeSize()
+	r.file.Write(data)
+	for _, value := range r.clients {
+		//fmt.Println("Key:", key, "Value:", value)
+		value = appendToPendings(FileChunk{
+			Start:  oldPos,
+			Length: int64(len(data)),
+		}, value)
+	}
+}
+
+func (r *Radio) fetchAndSend(client *Socket.SocketClient) {
+	list, ok := r.clients[client]
+	if !ok {
+		return
+	}
+
+	list = fetchAndSend(client, list, r.file)
 }
 
 func MakeRadio(fileName string) (Radio, error) {

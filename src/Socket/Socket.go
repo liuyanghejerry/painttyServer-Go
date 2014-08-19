@@ -10,13 +10,13 @@ type SocketClient struct {
 	GoingClose  chan bool
 }
 
-func (c *SocketClient) writeRaw(data []byte) (int, error) {
+func (c *SocketClient) WriteRaw(data []byte) (int, error) {
 	c.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
 	return c.con.Write(data)
 }
 
 func (c *SocketClient) sendPack(data []byte) (int, error) {
-	return c.writeRaw(protocolPack(data))
+	return c.WriteRaw(protocolPack(data))
 }
 
 func (c *SocketClient) SendDataPack(data []byte) (int, error) {

@@ -1,6 +1,8 @@
 package Radio
 
 import "reflect"
+import "BufferedFile"
+import "Socket"
 
 const (
 	CHUNK_SIZE          int64 = 1024 * 400 // Bytes
@@ -79,6 +81,33 @@ func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
 	if len(list.tasks) >= MAX_CHUNKS_IN_QUEUE*2 {
 		// TODO: add another function to re-split chunks in queue
 		//logger.warn('There\'re ', list.length, 'chunks in a single queue!')
+	}
+	return list
+}
+
+func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file BufferedFile.BufferedFile) RadioTaskList {
+	var tasks = &(list.tasks)
+	if len(*tasks) <= 0 {
+		return list
+	}
+
+	var item = (*tasks)[0]
+	*tasks = (*tasks)[1:len(*tasks)]
+
+	if reflect.TypeOf(item) == reflect.TypeOf(FileChunk{}) {
+		var item = item.(FileChunk)
+		var buf = make([]byte, item.Start)
+		length, _ := file.ReadAt(buf, item.Start)
+		if int64(length) != item.Length {
+			// move back
+			*tasks = append((*tasks), FileChunk{})
+			copy((*tasks)[1:], (*tasks)[0:])
+			(*tasks)[0] = item
+			return list
+		}
+		client.WriteRaw(buf)
+	} else {
+		client.WriteRaw(item.(RAMChunk).Data)
 	}
 	return list
 }
