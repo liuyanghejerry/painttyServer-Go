@@ -35,7 +35,7 @@ func TestWrite(t *testing.T) {
 		t.Error(err)
 	}
 
-	if len(file.buffer) != opt.bufferSize {
+	if len(file.buffer) != opt.BufferSize {
 		t.Log("buffer size is incorrect")
 		t.Error(len(file.buffer))
 	}
@@ -76,7 +76,7 @@ func TestRead(t *testing.T) {
 		t.Error(err)
 	}
 
-	if len(file.buffer) != opt.bufferSize {
+	if len(file.buffer) != opt.BufferSize {
 		t.Log("buffer size is incorrect")
 		t.Error(len(file.buffer))
 	}
