@@ -11,6 +11,7 @@ const (
 )
 
 // TODO: all need test
+// TODO: use type switch
 
 func splitChunk(chunk FileChunk) []RadioChunk {
 	var result_queue []RadioChunk
