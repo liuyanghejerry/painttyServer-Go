@@ -8,14 +8,17 @@ import (
 	"Router"
 	"Socket"
 	//"encoding/json"
+	"Room"
 	"sync"
 )
 
 type RoomManager struct {
-	clients    []Socket.SocketClient
-	ln         *net.TCPListener
-	goingClose chan bool
-	router     Router.Router
+	clients     []Socket.SocketClient
+	ln          *net.TCPListener
+	goingClose  chan bool
+	router      Router.Router
+	rooms       map[string]*Room.Room
+	roomsLocker sync.Mutex
 }
 
 func (m *RoomManager) init() error {

@@ -19,28 +19,21 @@ type RoomOption struct {
 	Password   string
 	WelcomeMsg string
 	Name       string
-	Salt       []byte
 	EmptyClose bool
 }
 
 type Room struct {
 	ln          *net.TCPListener
-	goingClose  chan bool
+	GoingClose  chan bool
 	router      Router.Router
 	radio       Radio.Radio
 	clients     []Socket.SocketClient
-	maxload     int
-	password    string
-	welcomemsg  string
-	name        string
-	emptyclose  bool
 	expiration  int
 	salt        string
 	key         string
 	archiveSign string
 	port        uint16
-	width       int
-	height      int
+	Options     RoomOption
 }
 
 var config map[string]interface{}
@@ -59,13 +52,17 @@ func genSignedKey(source []byte) string {
 
 func (m *Room) init() error {
 	m.clients = make([]Socket.SocketClient, 0, 10)
-	m.goingClose = make(chan bool, 1)
+	m.GoingClose = make(chan bool, 1)
 	m.router = Router.MakeRouter()
-	//m.radio = Radio.MakeRadio()
+	var source = append([]byte(m.Options.Name),
+		[]byte(m.Options.Password)...)
+	m.key = genSignedKey(source)
+	radio, err := Radio.MakeRadio(m.key + ".data")
+	m.radio = radio
 	m.expiration = 48
 	//m.router.Register("roomlist", m.handleRoomList)
 
-	var addr, err = net.ResolveTCPAddr("tcp", ":0")
+	addr, err := net.ResolveTCPAddr("tcp", ":0")
 	if err != nil {
 		// handle error
 		return err
@@ -95,8 +92,8 @@ func (m *Room) Run() error {
 	go func() {
 		for {
 			select {
-			case <-m.goingClose:
-				m.goingClose <- true // feed to other goros
+			case <-m.GoingClose:
+				m.GoingClose <- true // feed to other goros
 				return
 			default:
 				conn, err := m.ln.AcceptTCP()
@@ -115,11 +112,12 @@ func (m *Room) Run() error {
 }
 
 func (m *Room) processClient(client *Socket.SocketClient) {
+	m.radio.AddClient(client, 0, m.radio.FileSize())
 	go func() {
 		for {
 			select {
-			case <-m.goingClose:
-				m.goingClose <- true
+			case <-m.GoingClose:
+				m.GoingClose <- true
 				return
 			case pkg := <-client.PackageChan:
 				switch pkg.PackageType {
@@ -146,13 +144,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 
 func ServeRoom(opt RoomOption) (Room, error) {
 	var room = Room{
-		maxload:    opt.MaxLoad,
-		emptyclose: opt.EmptyClose,
-		width:      opt.Width,
-		height:     opt.Height,
-		welcomemsg: opt.WelcomeMsg,
-		password:   opt.Password,
-		name:       opt.Name,
+		Options: opt,
 	}
 	if err := room.init(); err != nil {
 		return Room{}, err

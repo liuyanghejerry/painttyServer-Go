@@ -5,7 +5,8 @@ import "testing"
 //import "bytes"
 import "os"
 import "time"
-import "fmt"
+
+//import "fmt"
 
 var (
 	toWrite  = []byte{1, 2, 3, 4, 5}
@@ -41,7 +42,7 @@ func TestWrite(t *testing.T) {
 	}
 
 	num, err := file.Write(toWrite)
-	fmt.Println(num)
+	//fmt.Println(num)
 	if num != len(toWrite) || err != nil {
 		t.Log("write size error")
 		t.Error(num, ", expect:", len(toWrite))
@@ -82,7 +83,7 @@ func TestRead(t *testing.T) {
 	}
 
 	num, err := file.Write(toWrite)
-	fmt.Println(num)
+	//fmt.Println(num)
 	if num != len(toWrite) || err != nil {
 		t.Log("write size error")
 		t.Error(num, ", expect:", len(toWrite))
@@ -93,13 +94,13 @@ func TestRead(t *testing.T) {
 	if num != len(read_buf) || err != nil {
 		t.Error("failed to read", err, num)
 	}
-	fmt.Println(read_buf)
+	//fmt.Println(read_buf)
 
 	file.Write([]byte{1, 2, 3})
-	fmt.Println(file.waterMark)
+	//fmt.Println(file.waterMark)
 	num, err = file.ReadAt(read_buf, int64(len(toWrite)))
 	if num != len(read_buf) || err != nil {
 		t.Error("failed to read", err, num)
 	}
-	fmt.Println(read_buf)
+	//fmt.Println(read_buf)
 }

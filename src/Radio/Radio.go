@@ -66,6 +66,10 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 	r.clients[client] = list
 }
 
+func (r *Radio) FileSize() int64 {
+	return r.file.WholeSize()
+}
+
 // SingleSend expected Buffer that send to one specific Client but doesn't record.
 func (r *Radio) SingleSend(data []byte, client *Socket.SocketClient) {
 	value, ok := r.clients[client]

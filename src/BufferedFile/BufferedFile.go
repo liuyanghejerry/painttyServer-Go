@@ -1,3 +1,5 @@
+// BufferedFile provides a buffered file frontended by a []byte.
+// And it can sync to file automatically
 package BufferedFile
 
 import "os"
@@ -22,6 +24,7 @@ type BufferedFile struct {
 	goingClose chan bool
 }
 
+// Returns the size of file and buffer
 func (f *BufferedFile) WholeSize() int64 {
 	return f.wholeSize
 }
