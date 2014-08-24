@@ -1,6 +1,8 @@
 package Radio
 
 import "time"
+
+//import "fmt"
 import "Socket"
 import "BufferedFile"
 
@@ -31,10 +33,22 @@ func (c FileChunk) special() {
 	//
 }
 
+type RadioSendPart struct {
+	Data []byte
+}
+
+type RadioSingleSendPart struct {
+	Data   []byte
+	Client *Socket.SocketClient
+}
+
 type Radio struct {
-	clients    map[*Socket.SocketClient]RadioTaskList
-	file       BufferedFile.BufferedFile
-	GoingClose chan bool
+	clients        map[*Socket.SocketClient]RadioTaskList
+	file           BufferedFile.BufferedFile
+	GoingClose     chan bool
+	SingleSendChan chan RadioSingleSendPart
+	SendChan       chan RadioSendPart
+	WriteChan      chan RadioSendPart
 }
 
 func (r *Radio) Close() {
@@ -42,7 +56,9 @@ func (r *Radio) Close() {
 }
 
 func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
-	var list = RadioTaskList{}
+	var list = RadioTaskList{
+		make([]RadioChunk, 0, 100),
+	}
 	var fileSize = r.file.WholeSize()
 	var startPos, chunkSize int64
 	if start > fileSize {
@@ -71,7 +87,7 @@ func (r *Radio) FileSize() int64 {
 }
 
 // SingleSend expected Buffer that send to one specific Client but doesn't record.
-func (r *Radio) SingleSend(data []byte, client *Socket.SocketClient) {
+func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 	value, ok := r.clients[client]
 	if !ok {
 		return
@@ -82,7 +98,7 @@ func (r *Radio) SingleSend(data []byte, client *Socket.SocketClient) {
 }
 
 // Send expected Buffer that send to every Client but doesn't record.
-func (r *Radio) Send(data []byte) {
+func (r *Radio) send(data []byte) {
 	for _, value := range r.clients {
 		//fmt.Println("Key:", key, "Value:", value)
 		value = appendToPendings(RAMChunk{
@@ -92,7 +108,7 @@ func (r *Radio) Send(data []byte) {
 }
 
 // Write expected Buffer that send to every Client and record data.
-func (r *Radio) Write(data []byte) {
+func (r *Radio) write(data []byte) {
 	var oldPos = r.file.WholeSize()
 	r.file.Write(data)
 	for _, value := range r.clients {
@@ -113,6 +129,25 @@ func (r *Radio) fetchAndSend(client *Socket.SocketClient) {
 	list = fetchAndSend(client, list, r.file)
 }
 
+func (r *Radio) run() {
+	for {
+		select {
+		case <-r.GoingClose:
+			r.GoingClose <- true
+			return
+		case part := <-r.SendChan:
+			r.send(part.Data)
+			break
+		case part := <-r.SingleSendChan:
+			r.singleSend(part.Data, part.Client)
+			break
+		case part := <-r.WriteChan:
+			r.write(part.Data)
+			break
+		}
+	}
+}
+
 func MakeRadio(fileName string) (Radio, error) {
 	var file, err = BufferedFile.MakeBufferedFile(BufferedFile.BufferedFileOption{
 		fileName,
@@ -123,9 +158,13 @@ func MakeRadio(fileName string) (Radio, error) {
 		return Radio{}, err
 	}
 	var radio = Radio{
-		file:       file,
-		GoingClose: make(chan bool, 1),
+		clients:        make(map[*Socket.SocketClient]RadioTaskList),
+		file:           file,
+		GoingClose:     make(chan bool),
+		SingleSendChan: make(chan RadioSingleSendPart),
+		SendChan:       make(chan RadioSendPart),
+		WriteChan:      make(chan RadioSendPart),
 	}
-
+	go radio.run()
 	return radio, nil
 }

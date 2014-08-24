@@ -10,6 +10,7 @@ type SocketClient struct {
 	GoingClose  chan bool
 }
 
+// TODO: considering use channel to replace function calls
 func (c *SocketClient) WriteRaw(data []byte) (int, error) {
 	c.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
 	return c.con.Write(data)

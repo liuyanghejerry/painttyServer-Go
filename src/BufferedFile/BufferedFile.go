@@ -5,6 +5,7 @@ package BufferedFile
 import "os"
 import "time"
 import "errors"
+import "sync"
 
 //import "fmt"
 
@@ -22,6 +23,7 @@ type BufferedFile struct {
 	wholeSize  int64
 	file       *os.File
 	goingClose chan bool
+	locker     sync.Mutex
 }
 
 // Returns the size of file and buffer
@@ -69,10 +71,12 @@ func (f *BufferedFile) startWriteTimer() error {
 }
 
 func (f *BufferedFile) Sync() error {
+	f.locker.Lock()
 	_, err := f.file.Write(f.buffer[0:f.waterMark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
 	f.fileSize += int64(f.waterMark)
 	f.waterMark = 0
+	f.locker.Unlock()
 	return err
 }
 
@@ -86,6 +90,7 @@ func (f *BufferedFile) Close() error {
 }
 
 func (f *BufferedFile) Write(data []byte) (int, error) {
+
 	var length = len(data)
 	var left = len(f.buffer) - f.waterMark
 	var err error = nil
@@ -99,6 +104,7 @@ func (f *BufferedFile) Write(data []byte) (int, error) {
 	// buffer cannot contain such big write
 	// directly write into file
 	// since we've already clear the buffer
+	f.locker.Lock()
 	if length > len(f.buffer) {
 		f.wholeSize += int64(length)
 		f.fileSize += int64(length)
@@ -107,35 +113,12 @@ func (f *BufferedFile) Write(data []byte) (int, error) {
 	copy(f.buffer, data)
 	f.waterMark += length
 	f.wholeSize += int64(length)
-	return length, err
-}
-
-// FIXME: read should have a clear pos
-func (f *BufferedFile) Read(data []byte) (int, error) {
-	var length = len(data)
-	var err error = nil
-	// none in buffer
-	if f.waterMark == 0 {
-		return f.file.Read(data)
-	}
-
-	// all in buffer
-	if length <= f.waterMark {
-		num := copy(data, f.buffer)
-		return num, nil
-	}
-	// half in buffer, and the other half in file
-	// copy bytes in buffer first
-	for i := 0; i < f.waterMark; i++ {
-		data[i] = f.buffer[i]
-	}
-	// all in one?
-	_, err = f.file.Read(data[f.waterMark:])
-
+	f.locker.Unlock()
 	return length, err
 }
 
 func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
+	f.locker.Lock()
 	var length = int64(len(data))
 	var mark = int64(f.waterMark)
 	var err error = nil
@@ -169,6 +152,7 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
 	for i, pre := 0, len(file_buf); i < len(buffer_buf); i++ {
 		data[pre+i] = buffer_buf[i]
 	}
+	f.locker.Unlock()
 
 	return len(data), err
 }
@@ -182,6 +166,7 @@ func MakeBufferedFile(option BufferedFileOption) (BufferedFile, error) {
 		0,
 		nil,
 		make(chan bool, 1),
+		sync.Mutex{},
 	}
 
 	if err := bufFile.openForRead(); err != nil {

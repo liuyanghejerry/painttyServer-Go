@@ -4,6 +4,8 @@ import "reflect"
 import "BufferedFile"
 import "Socket"
 
+//import "fmt"
+
 const (
 	CHUNK_SIZE          int64 = 1024 * 400 // Bytes
 	MAX_CHUNKS_IN_QUEUE       = 2048       // which means there shuold be 2048 RadioChunk instances in pending queue at most
@@ -14,7 +16,7 @@ const (
 // TODO: use type switch
 
 func splitChunk(chunk FileChunk) []RadioChunk {
-	var result_queue []RadioChunk
+	var result_queue = make([]RadioChunk, 0, 20)
 	var real_chunk_size = CHUNK_SIZE
 	var chunks = chunk.Length / real_chunk_size
 

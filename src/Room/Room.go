@@ -6,10 +6,13 @@ import (
 	"Router"
 	"Socket"
 	"bytes"
+	"fmt"
 	xxhash "github.com/OneOfOne/xxhash/native"
 	"io"
 	"net"
 	"strconv"
+	"sync"
+	"time"
 )
 
 type RoomOption struct {
@@ -27,16 +30,17 @@ type Room struct {
 	GoingClose  chan bool
 	router      Router.Router
 	radio       Radio.Radio
-	clients     []Socket.SocketClient
+	clients     map[*Socket.SocketClient]string
 	expiration  int
 	salt        string
 	key         string
 	archiveSign string
 	port        uint16
 	Options     RoomOption
+	locker      sync.Mutex
 }
 
-var config map[string]interface{}
+var config map[interface{}]interface{}
 
 func init() {
 	config = Config.GetConfig()
@@ -50,9 +54,23 @@ func genSignedKey(source []byte) string {
 	return strconv.FormatUint(hash, 32)
 }
 
+func (m *Room) genClientId() string {
+	h := xxhash.New64()
+	timeData, err := time.Now().MarshalBinary()
+	if err != nil {
+		timeData = []byte("asdasdasdfuweyfiaiuehmoixzwe")
+	}
+	var source = append(timeData, []byte(m.Options.Name)...)
+	source = append(source, config["globalSaltHash"].([]byte)...)
+	r := bytes.NewReader(source)
+	io.Copy(h, r)
+	hash := h.Sum64()
+	return strconv.FormatUint(hash, 32)
+}
+
 func (m *Room) init() error {
-	m.clients = make([]Socket.SocketClient, 0, 10)
-	m.GoingClose = make(chan bool, 1)
+	m.clients = make(map[*Socket.SocketClient]string)
+	m.GoingClose = make(chan bool)
 	m.router = Router.MakeRouter()
 	var source = append([]byte(m.Options.Name),
 		[]byte(m.Options.Password)...)
@@ -60,7 +78,7 @@ func (m *Room) init() error {
 	radio, err := Radio.MakeRadio(m.key + ".data")
 	m.radio = radio
 	m.expiration = 48
-	//m.router.Register("roomlist", m.handleRoomList)
+	m.router.Register("login", m.handleJoin)
 
 	addr, err := net.ResolveTCPAddr("tcp", ":0")
 	if err != nil {
@@ -81,14 +99,27 @@ func (m *Room) init() error {
 	if err != nil {
 		return err
 	}
+	fmt.Println("port", m.port)
 	return nil
 }
 
+func (m *Room) Port() uint16 {
+	return m.port
+}
+
+func (m *Room) Key() string {
+	return m.key
+}
+
+func (m *Room) CurrentLoad() int {
+	m.locker.Lock()
+	var length = len(m.clients)
+	m.locker.Unlock()
+	return length
+}
+
 func (m *Room) Run() error {
-	err := m.init()
-	if err != nil {
-		return err
-	}
+	fmt.Println("Room ", m.Options.Name, " is running")
 	go func() {
 		for {
 			select {
@@ -97,15 +128,18 @@ func (m *Room) Run() error {
 				return
 			default:
 				conn, err := m.ln.AcceptTCP()
+				fmt.Println("Room got one client")
 				if err != nil {
 					// handle error
+					panic(err)
 					continue
 				}
 				var client = Socket.MakeSocketClient(conn)
-				m.clients = append(m.clients, client)
+				m.locker.Lock()
+				m.clients[&client] = m.genClientId()
+				m.locker.Unlock()
 				go m.processClient(&client)
 			}
-
 		}
 	}()
 	return nil
@@ -125,17 +159,22 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 					m.router.OnMessage(pkg.Unpacked, client)
 					break
 				case Socket.DATA:
-					// TODO
-					//m.router.OnMessage(pkg.Unpacked, client)
+					m.radio.WriteChan <- Radio.RadioSendPart{
+						Data: pkg.Repacked,
+					}
 					break
 				case Socket.MESSAGE:
-					// TODO
-					//m.router.OnMessage(pkg.Unpacked, client)
+					m.radio.SendChan <- Radio.RadioSendPart{
+						Data: pkg.Repacked,
+					}
 					break
 				}
 				break
 			case <-client.GoingClose:
 				client.GoingClose <- true
+				m.locker.Lock()
+				delete(m.clients, client)
+				m.locker.Unlock()
 				return
 			}
 		}

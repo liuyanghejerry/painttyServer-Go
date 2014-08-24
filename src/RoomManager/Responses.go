@@ -7,8 +7,8 @@ type RoomPublicInfo struct {
 	CurrentLoad   int    `json:"currentload"`
 	MaxLoad       int    `json:"maxload"`
 	Private       bool   `json:"private"`
-	ServerAddress bool   `json:"serveraddress"`
-	Port          int    `json:"port"`
+	ServerAddress string `json:"serveraddress"`
+	Port          uint16 `json:"port"`
 }
 
 type RoomListResponse struct {
@@ -19,12 +19,12 @@ type RoomListResponse struct {
 }
 
 type NewRoomInfoForReply struct {
-	Port     int    `json:"port"`
+	Port     uint16 `json:"port"`
 	Key      string `json:"key"`
 	Password string `json:"password"`
 }
 
-type NewRoomReply struct {
+type NewRoomResponse struct {
 	Response string              `json:"response"`
 	Result   bool                `json:"result"`
 	Info     NewRoomInfoForReply `json:"info"`

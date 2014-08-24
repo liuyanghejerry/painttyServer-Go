@@ -23,9 +23,11 @@ type RoomManager struct {
 
 func (m *RoomManager) init() error {
 	m.clients = make([]Socket.SocketClient, 0, 100)
-	m.goingClose = make(chan bool, 1)
+	m.goingClose = make(chan bool)
+	m.rooms = make(map[string]*Room.Room)
 	m.router = Router.MakeRouter()
 	m.router.Register("roomlist", m.handleRoomList)
+	m.router.Register("newroom", m.handleNewRoom)
 
 	var addr, err = net.ResolveTCPAddr("tcp", ":8080")
 	if err != nil {

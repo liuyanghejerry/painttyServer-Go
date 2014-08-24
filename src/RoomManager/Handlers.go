@@ -3,14 +3,28 @@ package RoomManager
 import "encoding/json"
 import "Socket"
 import "Room"
+import "fmt"
 
 func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	req := &RoomListRequest{}
 	json.Unmarshal(data, &req)
+	fmt.Println(req.Request)
+	roomlist := make([]RoomPublicInfo, 0, 100)
+	for _, v := range m.rooms {
+		room := RoomPublicInfo{
+			Name:          v.Options.Name,
+			CurrentLoad:   v.CurrentLoad(),
+			Private:       false, //TODO
+			MaxLoad:       v.Options.MaxLoad,
+			ServerAddress: "0.0.0.0",
+			Port:          v.Port(),
+		}
+		roomlist = append(roomlist, room)
+	}
 	var resp = RoomListResponse{
 		"roomlist",
 		true,
-		[]RoomPublicInfo{},
+		roomlist,
 		0,
 	}
 	var raw, err = json.Marshal(resp)
@@ -19,22 +33,26 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	}
 	_, err = client.SendManagerPack(raw)
 	if err != nil {
-		panic(err)
+		//panic(err)
+		client.GoingClose <- true
 	}
 }
 
 func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
-	req := &NewRoomInfoForRequest{}
-	json.Unmarshal(data, &req)
+	req := &NewRoomRequest{}
+	err := json.Unmarshal(data, &req)
+	if err != nil {
+		panic(err)
+	}
 
 	var options = Room.RoomOption{
-		MaxLoad:    8,
-		Width:      1080,
-		Height:     720,
-		Name:       "Kiss",
-		EmptyClose: true,
+		MaxLoad:    req.Info.MaxLoad,
+		Width:      req.Info.Size.Width,
+		Height:     req.Info.Size.Height,
+		Name:       req.Info.Name,
+		EmptyClose: req.Info.EmptyClose,
 	}
-	var room, err = Room.ServeRoom(options)
+	room, err := Room.ServeRoom(options)
 	if err != nil {
 		panic(err)
 	}
@@ -43,24 +61,22 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	m.roomsLocker.Unlock()
 	room.Run()
 	go func() {
-		for {
-			select {
-			case <-room.GoingClose:
-				room.GoingClose <- true
-				m.roomsLocker.Lock()
-				delete(m.rooms, room.Options.Name)
-				m.roomsLocker.Unlock()
-				return
-			default:
-				//
-			}
-		}
+		<-room.GoingClose
+		room.GoingClose <- true
+		m.roomsLocker.Lock()
+		delete(m.rooms, room.Options.Name)
+		m.roomsLocker.Unlock()
+		return
 	}()
 
-	var resp = RoomListResponse{
-		"roomlist",
+	var resp = NewRoomResponse{
+		"newroom",
 		true,
-		[]RoomPublicInfo{},
+		NewRoomInfoForReply{
+			room.Port(),
+			room.Key(),
+			"",
+		},
 		0,
 	}
 	raw, err := json.Marshal(resp)

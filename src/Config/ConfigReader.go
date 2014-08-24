@@ -2,18 +2,20 @@ package Config
 
 import (
 	"crypto/sha512"
+	"fmt"
 	yaml "gopkg.in/yaml.v1"
 	"os"
 	//"path/filepath"
 )
 
-var confMap map[string]interface{}
+var confMap map[interface{}]interface{}
 
 func init() {
 	file, err := os.Open("./config.yml")
 	if err != nil {
 		panic(err)
 	}
+
 	defer file.Close()
 
 	fi, err := file.Stat()
@@ -22,12 +24,15 @@ func init() {
 	}
 
 	var buf = make([]byte, fi.Size())
+	file.Read(buf)
 	var tmp interface{}
 	err = yaml.Unmarshal(buf, &tmp)
 	if err != nil {
 		panic(err)
 	}
-	confMap = tmp.(map[string]interface{})
+
+	confMap = tmp.(map[interface{}]interface{})
+	fmt.Println(confMap)
 	saltFileName := confMap["salt"].(string)
 	saltFile, err := os.Open(saltFileName)
 	if err != nil {
@@ -49,6 +54,6 @@ func init() {
 	confMap["globalSaltHash"] = dbuf
 }
 
-func GetConfig() map[string]interface{} {
+func GetConfig() map[interface{}]interface{} {
 	return confMap
 }
