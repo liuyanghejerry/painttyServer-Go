@@ -2,8 +2,6 @@ package Socket
 
 import "Common"
 
-//import "fmt"
-
 type Package struct {
 	PackageType int
 	Unpacked    []byte
@@ -18,7 +16,7 @@ type SocketReader struct {
 
 func NewSocketReader() SocketReader {
 	reader := SocketReader{
-		[]byte{},
+		make([]byte, 0, 512),
 		0,
 		make(chan Package),
 	}
@@ -31,7 +29,7 @@ func (r *SocketReader) OnData(chunk []byte) {
 	var GET_PACKAGE_SIZE_FROM_DATA = func() int {
 		var pg_size_array = r.buffer[0:4]
 		r.buffer = r.buffer[4:]
-		var pg_size = int(pg_size_array[0]<<24) + int(pg_size_array[1]<<16) + int(pg_size_array[2]<<8) + int(pg_size_array[3])
+		var pg_size = int(pg_size_array[0])<<24 + int(pg_size_array[1])<<16 + int(pg_size_array[2])<<8 + int(pg_size_array[3])
 		return pg_size
 	}
 
