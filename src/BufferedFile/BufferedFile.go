@@ -2,12 +2,14 @@
 // And it can sync to file automatically
 package BufferedFile
 
-import "os"
-import "time"
-import "errors"
-import "sync"
-
-//import "fmt"
+import (
+	"errors"
+	"fmt"
+	"os"
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
 type BufferedFileOption struct {
 	FileName   string
@@ -18,7 +20,7 @@ type BufferedFileOption struct {
 type BufferedFile struct {
 	option     BufferedFileOption
 	buffer     []byte
-	waterMark  int
+	waterMark  int64
 	fileSize   int64
 	wholeSize  int64
 	file       *os.File
@@ -60,10 +62,11 @@ func (f *BufferedFile) startWriteTimer() error {
 				f.goingClose <- true
 				return
 			default:
+				time.Sleep(f.option.WriteCycle)
 				if err := f.Sync(); err != nil {
 					panic(err)
 				}
-				time.Sleep(f.option.WriteCycle * time.Millisecond)
+
 			}
 		}
 	}()
@@ -72,11 +75,18 @@ func (f *BufferedFile) startWriteTimer() error {
 
 func (f *BufferedFile) Sync() error {
 	f.locker.Lock()
-	_, err := f.file.Write(f.buffer[0:f.waterMark])
+	defer f.locker.Unlock()
+	var mark = atomic.LoadInt64(&f.waterMark)
+	fmt.Println("watermark read", mark)
+	if f.waterMark < 1 {
+		return nil
+	}
+	fmt.Println("write to system file", mark)
+	_, err := f.file.Write(f.buffer[0:mark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
-	f.fileSize += int64(f.waterMark)
-	f.waterMark = 0
-	f.locker.Unlock()
+	f.fileSize += mark
+	//f.waterMark = 0
+	atomic.StoreInt64(&f.waterMark, 0)
 	return err
 }
 
@@ -89,10 +99,10 @@ func (f *BufferedFile) Close() error {
 	return err
 }
 
-func (f *BufferedFile) Write(data []byte) (int, error) {
+func (f *BufferedFile) Write(data []byte) (int64, error) {
 
-	var length = len(data)
-	var left = len(f.buffer) - f.waterMark
+	var length = int64(len(data))
+	var left = int64(len(f.buffer)) - atomic.LoadInt64(&f.waterMark)
 	var err error = nil
 	// left room not enough
 	if left <= length {
@@ -105,22 +115,26 @@ func (f *BufferedFile) Write(data []byte) (int, error) {
 	// directly write into file
 	// since we've already clear the buffer
 	f.locker.Lock()
-	if length > len(f.buffer) {
-		f.wholeSize += int64(length)
-		f.fileSize += int64(length)
-		return f.file.Write(data)
+	defer f.locker.Unlock()
+	if length > int64(len(f.buffer)) {
+		f.wholeSize += length
+		f.fileSize += length
+		l, err := f.file.Write(data)
+		return int64(l), err
 	}
 	copy(f.buffer, data)
-	f.waterMark += length
+	//f.waterMark += length
+	atomic.AddInt64(&f.waterMark, length)
 	f.wholeSize += int64(length)
-	f.locker.Unlock()
+	fmt.Println("watermark update", atomic.LoadInt64(&f.waterMark))
 	return length, err
 }
 
 func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
 	f.locker.Lock()
+	defer f.locker.Unlock()
 	var length = int64(len(data))
-	var mark = int64(f.waterMark)
+	var mark = atomic.LoadInt64(&f.waterMark)
 	var err error = nil
 	if length > f.fileSize+mark {
 		return 0, errors.New("Cannot read so much")
@@ -152,7 +166,6 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
 	for i, pre := 0, len(file_buf); i < len(buffer_buf); i++ {
 		data[pre+i] = buffer_buf[i]
 	}
-	f.locker.Unlock()
 
 	return len(data), err
 }
@@ -177,5 +190,6 @@ func MakeBufferedFile(option BufferedFileOption) (BufferedFile, error) {
 		return bufFile, err
 	}
 	bufFile.wholeSize = bufFile.fileSize
+	//bufFile.startWriteTimer()
 	return bufFile, nil
 }

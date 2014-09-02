@@ -3,8 +3,7 @@ package Radio
 import "reflect"
 import "BufferedFile"
 import "Socket"
-
-//import "fmt"
+import "fmt"
 
 const (
 	CHUNK_SIZE          int64 = 1024 * 400 // Bytes
@@ -16,7 +15,7 @@ const (
 // TODO: use type switch
 
 func splitChunk(chunk FileChunk) []RadioChunk {
-	var result_queue = make([]RadioChunk, 0, 20)
+	var result_queue = make([]RadioChunk, 0)
 	var real_chunk_size = CHUNK_SIZE
 	var chunks = chunk.Length / real_chunk_size
 
@@ -88,8 +87,9 @@ func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
 	return list
 }
 
-func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file BufferedFile.BufferedFile) RadioTaskList {
+func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file *BufferedFile.BufferedFile) RadioTaskList {
 	var tasks = &(list.tasks)
+	fmt.Println("tasks fetchAndSend", list.tasks, len(*tasks))
 	if len(*tasks) <= 0 {
 		return list
 	}
@@ -99,8 +99,9 @@ func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file Buffered
 
 	if reflect.TypeOf(item) == reflect.TypeOf(FileChunk{}) {
 		var item = item.(FileChunk)
-		var buf = make([]byte, item.Start)
+		var buf = make([]byte, item.Length)
 		length, _ := file.ReadAt(buf, item.Start)
+		fmt.Println("fetched length", len(buf), length, item.Length)
 		if int64(length) != item.Length {
 			// move back
 			*tasks = append((*tasks), FileChunk{})
@@ -111,6 +112,7 @@ func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file Buffered
 		client.WriteRaw(buf)
 	} else {
 		client.WriteRaw(item.(RAMChunk).Data)
+		fmt.Println("going to send", item.(RAMChunk).Data)
 	}
 	return list
 }

@@ -1,10 +1,10 @@
 package Radio
 
 import "time"
-
-//import "fmt"
+import "fmt"
 import "Socket"
 import "BufferedFile"
+import "sync"
 
 type RadioTaskList struct {
 	tasks []RadioChunk
@@ -33,6 +33,13 @@ func (c FileChunk) special() {
 	//
 }
 
+type RadioClient struct {
+	client    *Socket.SocketClient
+	sendChan  chan RAMChunk
+	writeChan chan FileChunk
+	list      RadioTaskList
+}
+
 type RadioSendPart struct {
 	Data []byte
 }
@@ -43,12 +50,13 @@ type RadioSingleSendPart struct {
 }
 
 type Radio struct {
-	clients        map[*Socket.SocketClient]RadioTaskList
-	file           BufferedFile.BufferedFile
+	clients        map[*Socket.SocketClient]*RadioClient
+	file           *BufferedFile.BufferedFile
 	GoingClose     chan bool
 	SingleSendChan chan RadioSingleSendPart
 	SendChan       chan RadioSendPart
 	WriteChan      chan RadioSendPart
+	locker         sync.RWMutex
 }
 
 func (r *Radio) Close() {
@@ -79,7 +87,41 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		// appending to list
 		list.tasks = append(list.tasks, chunks...)
 	}
-	r.clients[client] = list
+	var radioClient = RadioClient{
+		client:    client,
+		sendChan:  make(chan RAMChunk),
+		writeChan: make(chan FileChunk),
+		list: RadioTaskList{
+			make([]RadioChunk, 0, 100),
+		},
+	}
+	fmt.Println("init tasks", radioClient.list)
+	r.locker.Lock()
+	r.clients[client] = &radioClient
+	r.locker.Unlock()
+	for {
+		select {
+		case <-client.GoingClose:
+			client.GoingClose <- true
+			return
+		case chunk := <-radioClient.sendChan:
+			list := radioClient.list
+			radioClient.list = appendToPendings(chunk, list)
+			fmt.Println("tasks after send", radioClient.list)
+			break
+		case chunk := <-radioClient.writeChan:
+			list := radioClient.list
+			radioClient.list = appendToPendings(chunk, list)
+			fmt.Println("tasks after write", radioClient.list)
+			break
+		default:
+			time.Sleep(time.Millisecond * 1500)
+			list := radioClient.list
+			list = fetchAndSend(client, list, r.file)
+			radioClient.list = list
+		}
+
+	}
 }
 
 func (r *Radio) FileSize() int64 {
@@ -88,45 +130,51 @@ func (r *Radio) FileSize() int64 {
 
 // SingleSend expected Buffer that send to one specific Client but doesn't record.
 func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
-	value, ok := r.clients[client]
+	r.locker.RLock()
+	cli, ok := r.clients[client]
+	r.locker.RUnlock()
 	if !ok {
 		return
 	}
-	value = appendToPendings(RAMChunk{
+	cli.sendChan <- RAMChunk{
 		data,
-	}, value)
+	}
 }
 
 // Send expected Buffer that send to every Client but doesn't record.
 func (r *Radio) send(data []byte) {
-	for _, value := range r.clients {
-		//fmt.Println("Key:", key, "Value:", value)
-		value = appendToPendings(RAMChunk{
+	for _, cli := range r.clientList() {
+		cli.sendChan <- RAMChunk{
 			data,
-		}, value)
+		}
 	}
 }
 
 // Write expected Buffer that send to every Client and record data.
 func (r *Radio) write(data []byte) {
 	var oldPos = r.file.WholeSize()
-	r.file.Write(data)
-	for _, value := range r.clients {
-		//fmt.Println("Key:", key, "Value:", value)
-		value = appendToPendings(FileChunk{
+	length, err := r.file.Write(data)
+	fmt.Println("only wrote", length)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("file is", r.file.WholeSize())
+	for _, cli := range r.clientList() {
+		cli.writeChan <- FileChunk{
 			Start:  oldPos,
 			Length: int64(len(data)),
-		}, value)
+		}
 	}
 }
 
-func (r *Radio) fetchAndSend(client *Socket.SocketClient) {
-	list, ok := r.clients[client]
-	if !ok {
-		return
+func (r *Radio) clientList() []*RadioClient {
+	list := make([]*RadioClient, 0)
+	r.locker.RLock()
+	defer r.locker.RUnlock()
+	for _, cli := range r.clients {
+		list = append(list, cli)
 	}
-
-	list = fetchAndSend(client, list, r.file)
+	return list
 }
 
 func (r *Radio) run() {
@@ -152,18 +200,19 @@ func MakeRadio(fileName string) (Radio, error) {
 	var file, err = BufferedFile.MakeBufferedFile(BufferedFile.BufferedFileOption{
 		fileName,
 		time.Second * 3,
-		1024 * 1024,
+		1024 * 10,
 	})
 	if err != nil {
 		return Radio{}, err
 	}
 	var radio = Radio{
-		clients:        make(map[*Socket.SocketClient]RadioTaskList),
-		file:           file,
+		clients:        make(map[*Socket.SocketClient]*RadioClient),
+		file:           &file,
 		GoingClose:     make(chan bool),
 		SingleSendChan: make(chan RadioSingleSendPart),
 		SendChan:       make(chan RadioSendPart),
 		WriteChan:      make(chan RadioSendPart),
+		locker:         sync.RWMutex{},
 	}
 	go radio.run()
 	return radio, nil

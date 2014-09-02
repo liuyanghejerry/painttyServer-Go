@@ -29,7 +29,7 @@ type Room struct {
 	ln          *net.TCPListener
 	GoingClose  chan bool
 	router      Router.Router
-	radio       Radio.Radio
+	radio       *Radio.Radio
 	clients     map[*Socket.SocketClient]string
 	expiration  int
 	salt        string
@@ -76,7 +76,7 @@ func (m *Room) init() error {
 		[]byte(m.Options.Password)...)
 	m.key = genSignedKey(source)
 	radio, err := Radio.MakeRadio(m.key + ".data")
-	m.radio = radio
+	m.radio = &radio
 	m.expiration = 48
 	m.router.Register("login", m.handleJoin)
 
@@ -146,7 +146,7 @@ func (m *Room) Run() error {
 }
 
 func (m *Room) processClient(client *Socket.SocketClient) {
-	m.radio.AddClient(client, 0, m.radio.FileSize())
+	go m.radio.AddClient(client, 0, m.radio.FileSize())
 	go func() {
 		for {
 			select {
