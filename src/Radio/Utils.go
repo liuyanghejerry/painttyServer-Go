@@ -1,9 +1,9 @@
 package Radio
 
-import "reflect"
 import "BufferedFile"
 import "Socket"
-import "fmt"
+
+//import "fmt"
 
 const (
 	CHUNK_SIZE          int64 = 1024 * 400 // Bytes
@@ -50,7 +50,8 @@ func pushRamChunk(chunk RAMChunk, queue RadioTaskList) RadioTaskList {
 }
 
 func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
-	if reflect.TypeOf(chunk) != reflect.TypeOf(FileChunk{}) {
+	switch chunk.(type) {
+	case RAMChunk:
 		list = pushRamChunk(chunk.(RAMChunk), list)
 		return list
 	}
@@ -59,7 +60,8 @@ func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
 	if len(list.tasks) > 0 {
 		var bottomItem = list.tasks[len(list.tasks)-1]
 		list.tasks = list.tasks[:len(list.tasks)-1]
-		if reflect.TypeOf(bottomItem) == reflect.TypeOf(FileChunk{}) {
+		switch bottomItem.(type) {
+		case FileChunk:
 			var bottomItemF = bottomItem.(FileChunk)
 			// try to merge new chunk into old chunk
 			var new_length = bottomItemF.Length + chunkF.Length
@@ -70,7 +72,7 @@ func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
 				list.tasks = append(list.tasks, bottomItemF)                        // push the old chunk back
 				list = pushLargeChunk(FileChunk{chunkF.Start, chunkF.Length}, list) // and new one
 			}
-		} else {
+		case RAMChunk:
 			// special RadioRAMChunk should be considered
 			// TODO: merge RadioRAMChunk if possible
 			list.tasks = append(list.tasks, bottomItem) // put it back, since we don't merge anything now
@@ -88,31 +90,34 @@ func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
 }
 
 func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file *BufferedFile.BufferedFile) RadioTaskList {
-	var tasks = &(list.tasks)
-	fmt.Println("tasks fetchAndSend", list.tasks, len(*tasks))
-	if len(*tasks) <= 0 {
+	var tasks = list.tasks
+	defer func() {
+		list.tasks = tasks
+	}()
+	//fmt.Println("tasks fetchAndSend", list.tasks, len(tasks))
+	if len(tasks) <= 0 {
 		return list
 	}
 
-	var item = (*tasks)[0]
-	*tasks = (*tasks)[1:len(*tasks)]
+	var item = tasks[0]
+	tasks = tasks[1:len(tasks)]
 
-	if reflect.TypeOf(item) == reflect.TypeOf(FileChunk{}) {
+	switch item.(type) {
+	case FileChunk:
 		var item = item.(FileChunk)
 		var buf = make([]byte, item.Length)
 		length, _ := file.ReadAt(buf, item.Start)
-		fmt.Println("fetched length", len(buf), length, item.Length)
+		//fmt.Println("fetched length", length)
 		if int64(length) != item.Length {
 			// move back
-			*tasks = append((*tasks), FileChunk{})
-			copy((*tasks)[1:], (*tasks)[0:])
-			(*tasks)[0] = item
+			tasks = append(tasks, FileChunk{})
+			copy(tasks[1:], tasks[0:])
+			tasks[0] = item
 			return list
 		}
 		client.WriteRaw(buf)
-	} else {
+	case RAMChunk:
 		client.WriteRaw(item.(RAMChunk).Data)
-		fmt.Println("going to send", item.(RAMChunk).Data)
 	}
 	return list
 }

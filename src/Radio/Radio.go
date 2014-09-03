@@ -1,7 +1,8 @@
 package Radio
 
 import "time"
-import "fmt"
+
+//import "fmt"
 import "Socket"
 import "BufferedFile"
 import "sync"
@@ -95,7 +96,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 			make([]RadioChunk, 0, 100),
 		},
 	}
-	fmt.Println("init tasks", radioClient.list)
+	//fmt.Println("init tasks", radioClient.list)
 	r.locker.Lock()
 	r.clients[client] = &radioClient
 	r.locker.Unlock()
@@ -107,12 +108,10 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		case chunk := <-radioClient.sendChan:
 			list := radioClient.list
 			radioClient.list = appendToPendings(chunk, list)
-			fmt.Println("tasks after send", radioClient.list)
 			break
 		case chunk := <-radioClient.writeChan:
 			list := radioClient.list
 			radioClient.list = appendToPendings(chunk, list)
-			fmt.Println("tasks after write", radioClient.list)
 			break
 		default:
 			time.Sleep(time.Millisecond * 1500)
@@ -153,12 +152,11 @@ func (r *Radio) send(data []byte) {
 // Write expected Buffer that send to every Client and record data.
 func (r *Radio) write(data []byte) {
 	var oldPos = r.file.WholeSize()
-	length, err := r.file.Write(data)
-	fmt.Println("only wrote", length)
+	_, err := r.file.Write(data)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("file is", r.file.WholeSize())
+	//fmt.Println("file is", r.file.WholeSize())
 	for _, cli := range r.clientList() {
 		cli.writeChan <- FileChunk{
 			Start:  oldPos,

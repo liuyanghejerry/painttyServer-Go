@@ -13,13 +13,13 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 		"login",
 		true,
 		JoinRoomInfo{
-			m.Options.Name,
-			m.radio.FileSize(),
-			SizeInfo{
+			Name:        m.Options.Name,
+			HistorySize: m.radio.FileSize(),
+			Size: SizeInfo{
 				m.Options.Width,
 				m.Options.Height,
 			},
-			"asdfasdfuhwef",
+			ClientId: genClientId(),
 		},
 		0,
 	}
