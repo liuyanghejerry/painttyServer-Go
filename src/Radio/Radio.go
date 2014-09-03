@@ -57,11 +57,30 @@ type Radio struct {
 	SingleSendChan chan RadioSingleSendPart
 	SendChan       chan RadioSendPart
 	WriteChan      chan RadioSendPart
+	signature      string
 	locker         sync.RWMutex
 }
 
 func (r *Radio) Close() {
 	r.GoingClose <- true
+}
+
+func (r *Radio) Signature() string {
+	return r.signature
+}
+
+func (r *Radio) Prune() {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	for _, v := range r.clients {
+		v.list = RadioTaskList{
+			make([]RadioChunk, 0, 100),
+		}
+	}
+	if err := r.file.Clear(); err != nil {
+		panic(err)
+	}
+	r.signature = genSignature()
 }
 
 func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
@@ -198,7 +217,7 @@ func MakeRadio(fileName string) (Radio, error) {
 	var file, err = BufferedFile.MakeBufferedFile(BufferedFile.BufferedFileOption{
 		fileName,
 		time.Second * 3,
-		1024 * 10,
+		1024 * 100,
 	})
 	if err != nil {
 		return Radio{}, err
@@ -211,6 +230,7 @@ func MakeRadio(fileName string) (Radio, error) {
 		SendChan:       make(chan RadioSendPart),
 		WriteChan:      make(chan RadioSendPart),
 		locker:         sync.RWMutex{},
+		signature:      genSignature(), // TODO: recovery
 	}
 	go radio.run()
 	return radio, nil

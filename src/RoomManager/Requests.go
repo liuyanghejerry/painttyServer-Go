@@ -7,8 +7,8 @@ type RoomListRequest struct {
 }
 
 type NewRoomSize struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	Width  int64 `json:"width"`
+	Height int64 `json:"height"`
 }
 
 type NewRoomInfoForRequest struct {

@@ -1,8 +1,8 @@
 package Room
 
 type SizeInfo struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	Width  int64 `json:"width"`
+	Height int64 `json:"height"`
 }
 
 type JoinRoomInfo struct {
@@ -16,5 +16,30 @@ type JoinRoomResponse struct {
 	Response string       `json:"response"`
 	Result   bool         `json:"result"`
 	RoomList JoinRoomInfo `json:"info"`
-	ErrCode  int          `json:"errcode"`
+	ErrCode  int64        `json:"errcode"`
+}
+
+type HeartbeatResponse struct {
+	Response  string `json:"response"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+type ArchiveSignResponse struct {
+	Response  string `json:"response"`
+	Result    bool   `json:"result"`
+	Signature string `json:"signature"`
+	Errcode   int64  `json:"errcode"`
+}
+
+type ArchiveResponse struct {
+	Response   string `json:"response"`
+	Result     bool   `json:"result"`
+	Signature  string `json:"signature"`
+	DataLength int64  `json:"datalength"`
+	Errcode    int64  `json:"errcode"`
+}
+
+type ClearAllResponse struct {
+	Response string `json:"response"`
+	Result   bool   `json:"result"`
 }

@@ -2,6 +2,8 @@ package Radio
 
 import "BufferedFile"
 import "Socket"
+import "github.com/dustin/randbo"
+import "encoding/hex"
 
 //import "fmt"
 
@@ -120,4 +122,10 @@ func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file *Buffere
 		client.WriteRaw(item.(RAMChunk).Data)
 	}
 	return list
+}
+
+func genSignature() string {
+	var buf = make([]byte, 16)
+	randbo.New().Read(buf)
+	return hex.EncodeToString(buf)
 }

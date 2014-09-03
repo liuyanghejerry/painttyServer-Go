@@ -17,8 +17,8 @@ import (
 
 type RoomOption struct {
 	MaxLoad    int
-	Width      int
-	Height     int
+	Width      int64
+	Height     int64
 	Password   string
 	WelcomeMsg string
 	Name       string
@@ -79,6 +79,10 @@ func (m *Room) init() error {
 	m.radio = &radio
 	m.expiration = 48
 	m.router.Register("login", m.handleJoin)
+	m.router.Register("heartbeat", m.handleHeartbeat)
+	m.router.Register("archivesign", m.handleArchiveSign)
+	m.router.Register("archive", m.handleArchive)
+	m.router.Register("clearall", m.handleClearAll)
 
 	addr, err := net.ResolveTCPAddr("tcp", ":0")
 	if err != nil {
@@ -146,7 +150,7 @@ func (m *Room) Run() error {
 }
 
 func (m *Room) processClient(client *Socket.SocketClient) {
-	go m.radio.AddClient(client, 0, m.radio.FileSize())
+	//go m.radio.AddClient(client, 0, m.radio.FileSize())
 	go func() {
 		for {
 			select {

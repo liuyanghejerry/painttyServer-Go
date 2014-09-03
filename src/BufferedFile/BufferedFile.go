@@ -30,7 +30,7 @@ type BufferedFile struct {
 
 // Returns the size of file and buffer
 func (f *BufferedFile) WholeSize() int64 {
-	return f.wholeSize
+	return atomic.LoadInt64(&f.wholeSize)
 }
 
 func (f *BufferedFile) openForRead() error {
@@ -54,7 +54,8 @@ func (f *BufferedFile) fetchFileSize() error {
 	return err
 }
 
-func (f *BufferedFile) startWriteTimer() error {
+// FIXME: not working
+func (f *BufferedFile) startWriteTimer() {
 	go func() {
 		for {
 			select {
@@ -63,25 +64,24 @@ func (f *BufferedFile) startWriteTimer() error {
 				return
 			default:
 				time.Sleep(f.option.WriteCycle)
+				fmt.Println("auto sync")
 				if err := f.Sync(); err != nil {
 					panic(err)
 				}
-
 			}
 		}
 	}()
-	return nil
 }
 
 func (f *BufferedFile) Sync() error {
 	f.locker.Lock()
 	defer f.locker.Unlock()
 	var mark = atomic.LoadInt64(&f.waterMark)
-	fmt.Println("watermark read", mark)
-	if f.waterMark < 1 {
+	//fmt.Println("watermark read", mark)
+	if mark < 1 {
 		return nil
 	}
-	fmt.Println("write to system file", mark)
+	//fmt.Println("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
 	f.fileSize += mark
@@ -99,8 +99,17 @@ func (f *BufferedFile) Close() error {
 	return err
 }
 
-func (f *BufferedFile) Write(data []byte) (int64, error) {
+func (f *BufferedFile) Clear() error {
+	f.locker.Lock()
+	defer f.locker.Unlock()
+	atomic.StoreInt64(&f.waterMark, 0)
+	atomic.StoreInt64(&f.fileSize, 0)
+	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
+	err := f.file.Truncate(0)
+	return err
+}
 
+func (f *BufferedFile) Write(data []byte) (int64, error) {
 	var length = int64(len(data))
 	var left = int64(len(f.buffer)) - atomic.LoadInt64(&f.waterMark)
 	var err error = nil
@@ -117,7 +126,7 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 	f.locker.Lock()
 	defer f.locker.Unlock()
 	if length > int64(len(f.buffer)) {
-		f.wholeSize += length
+		atomic.AddInt64(&f.wholeSize, length)
 		f.fileSize += length
 		l, err := f.file.Write(data)
 		return int64(l), err
@@ -125,8 +134,8 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 	copy(f.buffer, data)
 	//f.waterMark += length
 	atomic.AddInt64(&f.waterMark, length)
-	f.wholeSize += int64(length)
-	fmt.Println("watermark update", atomic.LoadInt64(&f.waterMark))
+	atomic.AddInt64(&f.wholeSize, length)
+	//fmt.Println("watermark update", atomic.LoadInt64(&f.waterMark))
 	return length, err
 }
 
@@ -189,7 +198,7 @@ func MakeBufferedFile(option BufferedFileOption) (BufferedFile, error) {
 	if err := bufFile.fetchFileSize(); err != nil {
 		return bufFile, err
 	}
-	bufFile.wholeSize = bufFile.fileSize
+	atomic.StoreInt64(&bufFile.wholeSize, bufFile.fileSize)
 	//bufFile.startWriteTimer()
 	return bufFile, nil
 }
