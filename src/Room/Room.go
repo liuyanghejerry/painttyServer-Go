@@ -76,7 +76,7 @@ func (m *Room) init() error {
 		[]byte(m.Options.Password)...)
 	m.key = genSignedKey(source)
 	radio, err := Radio.MakeRadio(m.key + ".data")
-	m.radio = &radio
+	m.radio = radio
 	m.expiration = 48
 	m.router.Register("login", m.handleJoin)
 	m.router.Register("heartbeat", m.handleHeartbeat)
@@ -185,13 +185,13 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 	}()
 }
 
-func ServeRoom(opt RoomOption) (Room, error) {
+func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
 		Options: opt,
 	}
 	if err := room.init(); err != nil {
-		return Room{}, err
+		return &Room{}, err
 	}
 
-	return room, nil
+	return &room, nil
 }

@@ -213,18 +213,18 @@ func (r *Radio) run() {
 	}
 }
 
-func MakeRadio(fileName string) (Radio, error) {
+func MakeRadio(fileName string) (*Radio, error) {
 	var file, err = BufferedFile.MakeBufferedFile(BufferedFile.BufferedFileOption{
 		fileName,
 		time.Second * 3,
 		1024 * 100,
 	})
 	if err != nil {
-		return Radio{}, err
+		return &Radio{}, err
 	}
 	var radio = Radio{
 		clients:        make(map[*Socket.SocketClient]*RadioClient),
-		file:           &file,
+		file:           file,
 		GoingClose:     make(chan bool),
 		SingleSendChan: make(chan RadioSingleSendPart),
 		SendChan:       make(chan RadioSendPart),
@@ -233,5 +233,5 @@ func MakeRadio(fileName string) (Radio, error) {
 		signature:      genSignature(), // TODO: recovery
 	}
 	go radio.run()
-	return radio, nil
+	return &radio, nil
 }

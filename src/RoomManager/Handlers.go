@@ -57,7 +57,7 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 		panic(err)
 	}
 	m.roomsLocker.Lock()
-	m.rooms[room.Options.Name] = &room
+	m.rooms[room.Options.Name] = room
 	m.roomsLocker.Unlock()
 	room.Run()
 	go func() {

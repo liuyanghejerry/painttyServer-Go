@@ -179,7 +179,7 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
 	return len(data), err
 }
 
-func MakeBufferedFile(option BufferedFileOption) (BufferedFile, error) {
+func MakeBufferedFile(option BufferedFileOption) (*BufferedFile, error) {
 	var bufFile = BufferedFile{
 		option,
 		make([]byte, option.BufferSize),
@@ -192,13 +192,13 @@ func MakeBufferedFile(option BufferedFileOption) (BufferedFile, error) {
 	}
 
 	if err := bufFile.openForRead(); err != nil {
-		return bufFile, err
+		return &bufFile, err
 	}
 
 	if err := bufFile.fetchFileSize(); err != nil {
-		return bufFile, err
+		return &bufFile, err
 	}
 	atomic.StoreInt64(&bufFile.wholeSize, bufFile.fileSize)
 	//bufFile.startWriteTimer()
-	return bufFile, nil
+	return &bufFile, nil
 }

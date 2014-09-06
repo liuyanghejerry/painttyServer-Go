@@ -93,6 +93,6 @@ func (m *RoomManager) processClient(client *Socket.SocketClient) {
 	}()
 }
 
-func ServeManager() RoomManager {
-	return RoomManager{}
+func ServeManager() *RoomManager {
+	return &RoomManager{}
 }
