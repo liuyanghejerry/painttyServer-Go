@@ -9,8 +9,8 @@ type Router struct {
 	table map[string]RouterHandler
 }
 
-func MakeRouter() Router {
-	return Router{
+func MakeRouter() *Router {
+	return &Router{
 		make(map[string]RouterHandler),
 	}
 }

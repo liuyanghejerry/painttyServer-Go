@@ -5,14 +5,10 @@ import (
 	"Radio"
 	"Router"
 	"Socket"
-	"bytes"
 	"fmt"
-	xxhash "github.com/OneOfOne/xxhash/native"
-	"io"
 	"net"
 	"strconv"
 	"sync"
-	"time"
 )
 
 type RoomOption struct {
@@ -28,7 +24,7 @@ type RoomOption struct {
 type Room struct {
 	ln          *net.TCPListener
 	GoingClose  chan bool
-	router      Router.Router
+	router      *Router.Router
 	radio       *Radio.Radio
 	clients     map[*Socket.SocketClient]string
 	expiration  int
@@ -37,35 +33,13 @@ type Room struct {
 	archiveSign string
 	port        uint16
 	Options     RoomOption
-	locker      sync.Mutex
+	locker      *sync.Mutex
 }
 
 var config map[interface{}]interface{}
 
 func init() {
 	config = Config.GetConfig()
-}
-
-func genSignedKey(source []byte) string {
-	h := xxhash.New64()
-	r := bytes.NewReader(append(source, config["globalSaltHash"].([]byte)...))
-	io.Copy(h, r)
-	hash := h.Sum64()
-	return strconv.FormatUint(hash, 32)
-}
-
-func (m *Room) genClientId() string {
-	h := xxhash.New64()
-	timeData, err := time.Now().MarshalBinary()
-	if err != nil {
-		timeData = []byte("asdasdasdfuweyfiaiuehmoixzwe")
-	}
-	var source = append(timeData, []byte(m.Options.Name)...)
-	source = append(source, config["globalSaltHash"].([]byte)...)
-	r := bytes.NewReader(source)
-	io.Copy(h, r)
-	hash := h.Sum64()
-	return strconv.FormatUint(hash, 32)
 }
 
 func (m *Room) init() error {
@@ -132,7 +106,6 @@ func (m *Room) Run() error {
 				return
 			default:
 				conn, err := m.ln.AcceptTCP()
-				fmt.Println("Room got one client")
 				if err != nil {
 					// handle error
 					panic(err)
@@ -140,9 +113,9 @@ func (m *Room) Run() error {
 				}
 				var client = Socket.MakeSocketClient(conn)
 				m.locker.Lock()
-				m.clients[&client] = m.genClientId()
+				m.clients[client] = m.genClientId()
 				m.locker.Unlock()
-				go m.processClient(&client)
+				m.processClient(client)
 			}
 		}
 	}()
@@ -150,14 +123,15 @@ func (m *Room) Run() error {
 }
 
 func (m *Room) processClient(client *Socket.SocketClient) {
-	//go m.radio.AddClient(client, 0, m.radio.FileSize())
 	go func() {
 		for {
 			select {
 			case <-m.GoingClose:
+				fmt.Println("Room is going go close")
 				m.GoingClose <- true
 				return
 			case pkg := <-client.PackageChan:
+				fmt.Println("package got")
 				switch pkg.PackageType {
 				case Socket.COMMAND:
 					m.router.OnMessage(pkg.Unpacked, client)
@@ -175,10 +149,10 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				}
 				break
 			case <-client.GoingClose:
-				client.GoingClose <- true
 				m.locker.Lock()
 				delete(m.clients, client)
 				m.locker.Unlock()
+				client.GoingClose <- true
 				return
 			}
 		}
@@ -188,6 +162,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
 		Options: opt,
+		locker:  &sync.Mutex{},
 	}
 	if err := room.init(); err != nil {
 		return &Room{}, err

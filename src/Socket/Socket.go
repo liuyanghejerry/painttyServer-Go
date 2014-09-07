@@ -72,12 +72,12 @@ func (c *SocketClient) Close() error {
 	return c.con.Close()
 }
 
-func MakeSocketClient(con *net.TCPConn) SocketClient {
+func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	con.SetReadDeadline(time.Now().Add(20 * time.Second))
 	client := SocketClient{
 		make(chan Package),
 		con,
-		make(chan bool),
+		make(chan bool, 1),
 	}
 	reader := NewSocketReader()
 
@@ -91,10 +91,10 @@ func MakeSocketClient(con *net.TCPConn) SocketClient {
 			default:
 				var buffer []byte = make([]byte, 128)
 				outBytes, err := con.Read(buffer)
-				con.SetReadDeadline(time.Now().Add(60 * time.Second))
+				con.SetReadDeadline(time.Now().Add(20 * time.Second))
 				if err != nil {
 					con.Close()
-					fmt.Println("client closed")
+					fmt.Println("client timeout")
 					client.GoingClose <- true
 				}
 				if outBytes == 0 {
@@ -119,5 +119,5 @@ func MakeSocketClient(con *net.TCPConn) SocketClient {
 			}
 		}
 	}()
-	return client
+	return &client
 }

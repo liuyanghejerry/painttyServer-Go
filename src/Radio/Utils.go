@@ -5,7 +5,7 @@ import "Socket"
 import "github.com/dustin/randbo"
 import "encoding/hex"
 
-//import "fmt"
+import "fmt"
 
 const (
 	CHUNK_SIZE          int64 = 1024 * 400 // Bytes
@@ -39,23 +39,21 @@ func splitChunk(chunk FileChunk) []RadioChunk {
 	return result_queue
 }
 
-func pushLargeChunk(chunk FileChunk, queue RadioTaskList) RadioTaskList {
+func pushLargeChunk(chunk FileChunk, queue *RadioTaskList) {
 	var new_items = splitChunk(chunk)
 	queue.tasks = append(queue.tasks, new_items...)
-	return queue
 }
 
-func pushRamChunk(chunk RAMChunk, queue RadioTaskList) RadioTaskList {
+func pushRamChunk(chunk RAMChunk, queue *RadioTaskList) {
 	// re-split chunk in ram won't save any memory, so just make it in queue
 	queue.tasks = append(queue.tasks, chunk)
-	return queue
 }
 
-func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
+func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 	switch chunk.(type) {
 	case RAMChunk:
-		list = pushRamChunk(chunk.(RAMChunk), list)
-		return list
+		pushRamChunk(chunk.(RAMChunk), list)
+		return
 	}
 	var chunkF = chunk.(FileChunk)
 
@@ -69,36 +67,35 @@ func appendToPendings(chunk RadioChunk, list RadioTaskList) RadioTaskList {
 			var new_length = bottomItemF.Length + chunkF.Length
 			if bottomItemF.Start+bottomItemF.Length == chunkF.Start { // if two chunks are neighbor
 				// concat two chunks and re-split them
-				list = pushLargeChunk(FileChunk{bottomItemF.Start, new_length}, list)
+				pushLargeChunk(FileChunk{bottomItemF.Start, new_length}, list)
 			} else { // or just push those in
-				list.tasks = append(list.tasks, bottomItemF)                        // push the old chunk back
-				list = pushLargeChunk(FileChunk{chunkF.Start, chunkF.Length}, list) // and new one
+				list.tasks = append(list.tasks, bottomItemF)                 // push the old chunk back
+				pushLargeChunk(FileChunk{chunkF.Start, chunkF.Length}, list) // and new one
 			}
 		case RAMChunk:
 			// special RadioRAMChunk should be considered
 			// TODO: merge RadioRAMChunk if possible
 			list.tasks = append(list.tasks, bottomItem) // put it back, since we don't merge anything now
-			list = pushLargeChunk(chunkF, list)
+			pushLargeChunk(chunkF, list)
 		}
 	} else {
-		list = pushLargeChunk(FileChunk{chunkF.Start, chunkF.Length}, list)
+		pushLargeChunk(FileChunk{chunkF.Start, chunkF.Length}, list)
 	}
 
 	if len(list.tasks) >= MAX_CHUNKS_IN_QUEUE*2 {
 		// TODO: add another function to re-split chunks in queue
 		//logger.warn('There\'re ', list.length, 'chunks in a single queue!')
 	}
-	return list
 }
 
-func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file *BufferedFile.BufferedFile) RadioTaskList {
+func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *BufferedFile.BufferedFile) {
 	var tasks = list.tasks
 	defer func() {
 		list.tasks = tasks
 	}()
 	//fmt.Println("tasks fetchAndSend", list.tasks, len(tasks))
 	if len(tasks) <= 0 {
-		return list
+		return
 	}
 
 	var item = tasks[0]
@@ -108,20 +105,20 @@ func fetchAndSend(client *Socket.SocketClient, list RadioTaskList, file *Buffere
 	case FileChunk:
 		var item = item.(FileChunk)
 		var buf = make([]byte, item.Length)
-		length, _ := file.ReadAt(buf, item.Start)
+		length, err := file.ReadAt(buf, item.Start)
 		//fmt.Println("fetched length", length)
-		if int64(length) != item.Length {
+		if int64(length) != item.Length || err != nil {
 			// move back
 			tasks = append(tasks, FileChunk{})
 			copy(tasks[1:], tasks[0:])
 			tasks[0] = item
-			return list
+			return
 		}
+		fmt.Println("write to client", len(buf), buf)
 		client.WriteRaw(buf)
 	case RAMChunk:
 		client.WriteRaw(item.(RAMChunk).Data)
 	}
-	return list
 }
 
 func genSignature() string {

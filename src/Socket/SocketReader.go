@@ -16,9 +16,9 @@ type SocketReader struct {
 
 func NewSocketReader() SocketReader {
 	reader := SocketReader{
-		make([]byte, 0, 512),
-		0,
-		make(chan Package),
+		buffer:      make([]byte, 0),
+		dataSize:    0,
+		PackageChan: make(chan Package),
 	}
 	return reader
 }

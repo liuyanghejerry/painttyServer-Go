@@ -3,26 +3,24 @@ package RoomManager
 import (
 	//"fmt"
 	//"log"
-	"net"
-	//"time"
+	"Room"
 	"Router"
 	"Socket"
-	//"encoding/json"
-	"Room"
+	"net"
 	"sync"
 )
 
 type RoomManager struct {
-	clients     []Socket.SocketClient
+	clients     []*Socket.SocketClient
 	ln          *net.TCPListener
 	goingClose  chan bool
-	router      Router.Router
+	router      *Router.Router
 	rooms       map[string]*Room.Room
 	roomsLocker sync.Mutex
 }
 
 func (m *RoomManager) init() error {
-	m.clients = make([]Socket.SocketClient, 0, 100)
+	m.clients = make([]*Socket.SocketClient, 0, 100)
 	m.goingClose = make(chan bool)
 	m.rooms = make(map[string]*Room.Room)
 	m.router = Router.MakeRouter()
@@ -64,7 +62,7 @@ func (m *RoomManager) Run() error {
 				}
 				var client = Socket.MakeSocketClient(conn)
 				m.clients = append(m.clients, client)
-				go m.processClient(&client)
+				m.processClient(client)
 			}
 
 		}

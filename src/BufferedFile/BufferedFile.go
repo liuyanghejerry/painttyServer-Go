@@ -131,11 +131,12 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 		l, err := f.file.Write(data)
 		return int64(l), err
 	}
-	copy(f.buffer, data)
-	//f.waterMark += length
+	//copy(f.buffer, data)
+	for i, j := atomic.LoadInt64(&f.waterMark), int64(0); j < int64(len(data)) && i < int64(len(f.buffer)); i, j = i+1, j+1 {
+		f.buffer[i] = data[j]
+	}
 	atomic.AddInt64(&f.waterMark, length)
 	atomic.AddInt64(&f.wholeSize, length)
-	//fmt.Println("watermark update", atomic.LoadInt64(&f.waterMark))
 	return length, err
 }
 

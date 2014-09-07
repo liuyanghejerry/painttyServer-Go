@@ -2,7 +2,7 @@ package Radio
 
 import "time"
 
-//import "fmt"
+import "fmt"
 import "Socket"
 import "BufferedFile"
 import "sync"
@@ -38,7 +38,7 @@ type RadioClient struct {
 	client    *Socket.SocketClient
 	sendChan  chan RAMChunk
 	writeChan chan FileChunk
-	list      RadioTaskList
+	list      *RadioTaskList
 }
 
 type RadioSendPart struct {
@@ -73,7 +73,7 @@ func (r *Radio) Prune() {
 	r.locker.Lock()
 	defer r.locker.Unlock()
 	for _, v := range r.clients {
-		v.list = RadioTaskList{
+		v.list = &RadioTaskList{
 			make([]RadioChunk, 0, 100),
 		}
 	}
@@ -84,8 +84,8 @@ func (r *Radio) Prune() {
 }
 
 func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
-	var list = RadioTaskList{
-		make([]RadioChunk, 0, 100),
+	var list = &RadioTaskList{
+		make([]RadioChunk, 0),
 	}
 	var fileSize = r.file.WholeSize()
 	var startPos, chunkSize int64
@@ -106,14 +106,13 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		})
 		// appending to list
 		list.tasks = append(list.tasks, chunks...)
+		fmt.Println("tasks assigned", list.tasks)
 	}
 	var radioClient = RadioClient{
 		client:    client,
 		sendChan:  make(chan RAMChunk),
 		writeChan: make(chan FileChunk),
-		list: RadioTaskList{
-			make([]RadioChunk, 0, 100),
-		},
+		list:      list,
 	}
 	//fmt.Println("init tasks", radioClient.list)
 	r.locker.Lock()
@@ -125,18 +124,14 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 			client.GoingClose <- true
 			return
 		case chunk := <-radioClient.sendChan:
-			list := radioClient.list
-			radioClient.list = appendToPendings(chunk, list)
+			appendToPendings(chunk, radioClient.list)
 			break
 		case chunk := <-radioClient.writeChan:
-			list := radioClient.list
-			radioClient.list = appendToPendings(chunk, list)
+			appendToPendings(chunk, radioClient.list)
 			break
 		default:
 			time.Sleep(time.Millisecond * 1500)
-			list := radioClient.list
-			list = fetchAndSend(client, list, r.file)
-			radioClient.list = list
+			fetchAndSend(client, radioClient.list, r.file)
 		}
 
 	}
@@ -171,7 +166,8 @@ func (r *Radio) send(data []byte) {
 // Write expected Buffer that send to every Client and record data.
 func (r *Radio) write(data []byte) {
 	var oldPos = r.file.WholeSize()
-	_, err := r.file.Write(data)
+	wrote, err := r.file.Write(data)
+	fmt.Println("wrote", wrote, data)
 	if err != nil {
 		panic(err)
 	}

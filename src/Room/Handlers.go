@@ -91,19 +91,23 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 
 	var startPos = req.Start
 	var realLength = m.radio.FileSize()
-	fmt.Println("real length", realLength)
 	var dataLength = req.DataLength
 
-	if dataLength != 0 {
-		if startPos+dataLength <= realLength {
-			dataLength = realLength - startPos
-		}
-	} else {
-		dataLength = realLength
-	}
+	//if dataLength != 0 {
+	//	if startPos+dataLength <= realLength {
+	//		dataLength = realLength - startPos
+	//	}
+	//} else {
+	//	dataLength = realLength
+	//}
 
 	if startPos > realLength {
-		resp.Errcode = 901
+		startPos = realLength
+		dataLength = 0
+	}
+
+	if startPos+dataLength >= realLength {
+		dataLength = realLength - startPos
 	}
 
 	resp = ArchiveResponse{
@@ -125,7 +129,10 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 		client.GoingClose <- true
 	}
 
-	m.radio.AddClient(client, startPos, dataLength)
+	if resp.Result {
+		fmt.Println("startPos", startPos, "dataLength", dataLength)
+		go m.radio.AddClient(client, startPos, dataLength)
+	}
 }
 
 func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
