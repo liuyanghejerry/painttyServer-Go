@@ -75,7 +75,11 @@ func (f *BufferedFile) startWriteTimer() {
 
 func (f *BufferedFile) Sync() error {
 	f.locker.Lock()
-	defer f.locker.Unlock()
+	defer func() {
+		f.file.Close()
+		f.openForRead()
+		f.locker.Unlock()
+	}()
 	var mark = atomic.LoadInt64(&f.waterMark)
 	//fmt.Println("watermark read", mark)
 	if mark < 1 {
@@ -140,7 +144,7 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 	return length, err
 }
 
-func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
+func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 	f.locker.Lock()
 	defer f.locker.Unlock()
 	var length = int64(len(data))
@@ -151,13 +155,14 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
 	}
 	// all in file
 	if off+length <= f.fileSize {
-		return f.file.ReadAt(data, off)
+		l, e := f.file.ReadAt(data, off)
+		return int64(l), e
 	}
 
 	// all in buffer
 	if off+length <= mark {
 		num := copy(data, f.buffer)
-		return num, nil
+		return int64(num), nil
 	}
 
 	// half in buffer, and the other half in file
@@ -177,7 +182,7 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int, error) {
 		data[pre+i] = buffer_buf[i]
 	}
 
-	return len(data), err
+	return int64(len(data)), err
 }
 
 func MakeBufferedFile(option BufferedFileOption) (*BufferedFile, error) {
@@ -200,6 +205,6 @@ func MakeBufferedFile(option BufferedFileOption) (*BufferedFile, error) {
 		return &bufFile, err
 	}
 	atomic.StoreInt64(&bufFile.wholeSize, bufFile.fileSize)
-	//bufFile.startWriteTimer()
+	bufFile.startWriteTimer()
 	return &bufFile, nil
 }

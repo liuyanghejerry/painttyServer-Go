@@ -43,7 +43,7 @@ func TestWrite(t *testing.T) {
 
 	num, err := file.Write(toWrite)
 	//fmt.Println(num)
-	if num != len(toWrite) || err != nil {
+	if num != int64(len(toWrite)) || err != nil {
 		t.Log("write size error")
 		t.Error(num, ", expect:", len(toWrite))
 	}
@@ -84,14 +84,14 @@ func TestRead(t *testing.T) {
 
 	num, err := file.Write(toWrite)
 	//fmt.Println(num)
-	if num != len(toWrite) || err != nil {
+	if num != int64(len(toWrite)) || err != nil {
 		t.Log("write size error")
 		t.Error(num, ", expect:", len(toWrite))
 	}
 
 	var read_buf = make([]byte, 1)
 	num, err = file.ReadAt(read_buf, 0)
-	if num != len(read_buf) || err != nil {
+	if num != int64(len(read_buf)) || err != nil {
 		t.Error("failed to read", err, num)
 	}
 	//fmt.Println(read_buf)
@@ -99,8 +99,42 @@ func TestRead(t *testing.T) {
 	file.Write([]byte{1, 2, 3})
 	//fmt.Println(file.waterMark)
 	num, err = file.ReadAt(read_buf, int64(len(toWrite)))
-	if num != len(read_buf) || err != nil {
+	if num != int64(len(read_buf)) || err != nil {
 		t.Error("failed to read", err, num)
 	}
 	//fmt.Println(read_buf)
+}
+
+func TestAutoSync(t *testing.T) {
+	var opt = BufferedFileOption{
+		fileName,
+		time.Second * 1,
+		512,
+	}
+
+	var file, err = MakeBufferedFile(opt)
+	defer func() {
+		file.Close()
+		os.Remove(fileName)
+	}()
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(file.buffer) != opt.BufferSize {
+		t.Log("buffer size is incorrect")
+		t.Error(len(file.buffer))
+	}
+
+	toWrite = []byte{1, 2, 3, 4, 5}
+	num, err := file.Write(toWrite)
+
+	time.Sleep(2 * opt.WriteCycle)
+	//file.Close()
+
+	info, _ := os.Stat(fileName)
+	if info.Size() != int64(num) {
+		t.Error("file size is not correct after auto-sync, ", info.Size(), num)
+	}
 }
