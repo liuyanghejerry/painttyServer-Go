@@ -89,7 +89,7 @@ func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 }
 
 func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *BufferedFile.BufferedFile) {
-	fmt.Println("fetchAndSend", list.Tasks())
+	//fmt.Println("fetchAndSend", list.Tasks())
 	//fmt.Println("tasks fetchAndSend", list.tasks, len(tasks))
 	if list.Length() <= 0 {
 		return

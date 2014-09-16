@@ -105,7 +105,7 @@ type Radio struct {
 	SendChan       chan RadioSendPart
 	WriteChan      chan RadioSendPart
 	signature      string
-	locker         sync.RWMutex
+	locker         sync.Mutex
 }
 
 func (r *Radio) Close() {
@@ -156,8 +156,6 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 			Start:  startPos,
 			Length: chunkSize,
 		})
-		// appending to list
-		//list.tasks = append(list.tasks, chunks...)
 		list.Append(chunks)
 		fmt.Println("tasks assigned", list.Tasks())
 	}
@@ -175,6 +173,10 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		for {
 			select {
 			case <-client.GoingClose:
+				fmt.Println("auto remove closed client from radio")
+				r.locker.Lock()
+				delete(r.clients, client)
+				r.locker.Unlock()
 				client.GoingClose <- true
 				return
 			case chunk := <-radioClient.sendChan:
@@ -199,9 +201,10 @@ func (r *Radio) FileSize() int64 {
 
 // SingleSend expected Buffer that send to one specific Client but doesn't record.
 func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
-	r.locker.RLock()
+	r.locker.Lock()
+	defer r.locker.Unlock()
+
 	cli, ok := r.clients[client]
-	r.locker.RUnlock()
 	if !ok {
 		return
 	}
@@ -228,6 +231,7 @@ func (r *Radio) write(data []byte) {
 		panic(err)
 	}
 	for _, cli := range r.clientList() {
+		fmt.Println("published")
 		cli.writeChan <- FileChunk{
 			Start:  oldPos,
 			Length: int64(len(data)),
@@ -236,9 +240,10 @@ func (r *Radio) write(data []byte) {
 }
 
 func (r *Radio) clientList() []*RadioClient {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+
 	list := make([]*RadioClient, 0)
-	r.locker.RLock()
-	defer r.locker.RUnlock()
 	for _, cli := range r.clients {
 		list = append(list, cli)
 	}
@@ -273,16 +278,16 @@ func MakeRadio(fileName string) (*Radio, error) {
 	if err != nil {
 		return &Radio{}, err
 	}
-	var radio = Radio{
+	var radio = &Radio{
 		clients:        make(map[*Socket.SocketClient]*RadioClient),
 		file:           file,
 		GoingClose:     make(chan bool),
 		SingleSendChan: make(chan RadioSingleSendPart),
 		SendChan:       make(chan RadioSendPart),
 		WriteChan:      make(chan RadioSendPart),
-		locker:         sync.RWMutex{},
+		locker:         sync.Mutex{},
 		signature:      genSignature(), // TODO: recovery
 	}
 	go radio.run()
-	return &radio, nil
+	return radio, nil
 }
