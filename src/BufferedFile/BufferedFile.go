@@ -88,7 +88,7 @@ func (f *BufferedFile) Sync() error {
 	//fmt.Println("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
-	f.fileSize += mark
+	atomic.AddInt64(&f.fileSize, mark)
 	//f.waterMark = 0
 	atomic.StoreInt64(&f.waterMark, 0)
 	return err
@@ -114,6 +114,8 @@ func (f *BufferedFile) Clear() error {
 }
 
 func (f *BufferedFile) Write(data []byte) (int64, error) {
+	f.locker.Lock()
+	defer f.locker.Unlock()
 	var length = int64(len(data))
 	var left = int64(len(f.buffer)) - atomic.LoadInt64(&f.waterMark)
 	var err error = nil
@@ -127,11 +129,9 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 	// buffer cannot contain such big write
 	// directly write into file
 	// since we've already clear the buffer
-	f.locker.Lock()
-	defer f.locker.Unlock()
 	if length > int64(len(f.buffer)) {
 		atomic.AddInt64(&f.wholeSize, length)
-		f.fileSize += length
+		atomic.AddInt64(&f.fileSize, length)
 		l, err := f.file.Write(data)
 		return int64(l), err
 	}
@@ -147,30 +147,31 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 	f.locker.Lock()
 	defer f.locker.Unlock()
+	var fileSize = atomic.LoadInt64(&f.fileSize)
 	var length = int64(len(data))
 	var mark = atomic.LoadInt64(&f.waterMark)
 	var err error = nil
-	if length > f.fileSize+mark {
+	if off+length > fileSize+mark {
 		return 0, errors.New("Cannot read so much")
 	}
 	// all in file
-	if off+length <= f.fileSize {
+	if off+length <= fileSize {
 		l, e := f.file.ReadAt(data, off)
 		return int64(l), e
 	}
 
 	// all in buffer
-	if off+length <= mark {
+	if off <= mark+fileSize {
 		num := copy(data, f.buffer)
 		return int64(num), nil
 	}
 
 	// half in buffer, and the other half in file
 	// read file first
-	var file_buf = make([]byte, f.fileSize-off)
+	var file_buf = make([]byte, fileSize-off)
 	_, err = f.file.ReadAt(file_buf, off)
 	// copy bytes in buffer then
-	var buffer_buf = make([]byte, off+length-f.fileSize)
+	var buffer_buf = make([]byte, off+length-fileSize)
 	for i := 0; i < len(buffer_buf); i++ {
 		buffer_buf[i] = f.buffer[i]
 	}

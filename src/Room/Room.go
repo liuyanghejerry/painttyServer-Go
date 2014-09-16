@@ -131,7 +131,6 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				m.GoingClose <- true
 				return
 			case pkg := <-client.PackageChan:
-				fmt.Println("package got")
 				switch pkg.PackageType {
 				case Socket.COMMAND:
 					m.router.OnMessage(pkg.Unpacked, client)

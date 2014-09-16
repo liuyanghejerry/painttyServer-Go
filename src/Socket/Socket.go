@@ -8,12 +8,13 @@ type SocketClient struct {
 	PackageChan chan Package
 	con         *net.TCPConn
 	GoingClose  chan bool
+	rawChan     chan []byte
 }
 
-// TODO: considering use channel to replace function calls
+// TODO: due with error
 func (c *SocketClient) WriteRaw(data []byte) (int, error) {
-	c.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
-	return c.con.Write(data)
+	c.rawChan <- data
+	return len(data), nil
 }
 
 func (c *SocketClient) sendPack(data []byte) (int, error) {
@@ -69,6 +70,8 @@ func (c *SocketClient) SendManagerPack(data []byte) (int, error) {
 }
 
 func (c *SocketClient) Close() error {
+	c.GoingClose <- true
+	fmt.Println("client closed")
 	return c.con.Close()
 }
 
@@ -77,9 +80,27 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	client := SocketClient{
 		make(chan Package),
 		con,
-		make(chan bool, 1),
+		make(chan bool),
+		make(chan []byte),
 	}
 	reader := NewSocketReader()
+
+	go func() {
+		for {
+			select {
+			case <-client.GoingClose:
+				// the connection is going to close
+				client.GoingClose <- true // feed to other goroutines
+				return
+			case data := <-client.rawChan:
+				client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
+				_, err := client.con.Write(data)
+				if err != nil {
+					client.Close()
+				}
+			}
+		}
+	}()
 
 	go func() {
 		for {
@@ -93,9 +114,8 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 				outBytes, err := con.Read(buffer)
 				con.SetReadDeadline(time.Now().Add(20 * time.Second))
 				if err != nil {
-					con.Close()
-					fmt.Println("client timeout")
-					client.GoingClose <- true
+					client.Close()
+					return
 				}
 				if outBytes == 0 {
 					time.Sleep(1 * time.Second)

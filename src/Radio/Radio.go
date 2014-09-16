@@ -8,7 +8,54 @@ import "BufferedFile"
 import "sync"
 
 type RadioTaskList struct {
-	tasks []RadioChunk
+	tasks  []RadioChunk
+	locker sync.Mutex
+}
+
+func (r *RadioTaskList) Tasks() *[]RadioChunk {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	return &(r.tasks)
+}
+
+func (r *RadioTaskList) Length() int {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	return len(r.tasks)
+}
+
+func (r *RadioTaskList) Append(chunks []RadioChunk) {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	r.tasks = append(r.tasks, chunks...)
+}
+
+func (r *RadioTaskList) PushBack(chunks []RadioChunk) {
+	r.Append(chunks)
+}
+
+func (r *RadioTaskList) PopBack() RadioChunk {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	var bottomItem = r.tasks[len(r.tasks)-1]
+	r.tasks = r.tasks[:len(r.tasks)-1]
+	return bottomItem
+}
+
+func (r *RadioTaskList) PopFront() RadioChunk {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	var item = r.tasks[0]
+	r.tasks = r.tasks[1:len(r.tasks)]
+	return item
+}
+
+func (r *RadioTaskList) PushFront(chunk RadioChunk) {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	r.tasks = append(r.tasks, chunk)
+	copy(r.tasks[1:], r.tasks[0:])
+	r.tasks[0] = chunk
 }
 
 type RadioChunk interface {
@@ -75,6 +122,7 @@ func (r *Radio) Prune() {
 	for _, v := range r.clients {
 		v.list = &RadioTaskList{
 			make([]RadioChunk, 0, 100),
+			sync.Mutex{},
 		}
 	}
 	if err := r.file.Clear(); err != nil {
@@ -84,8 +132,12 @@ func (r *Radio) Prune() {
 }
 
 func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+
 	var list = &RadioTaskList{
 		make([]RadioChunk, 0),
+		sync.Mutex{},
 	}
 	var fileSize = r.file.WholeSize()
 	var startPos, chunkSize int64
@@ -105,8 +157,9 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 			Length: chunkSize,
 		})
 		// appending to list
-		list.tasks = append(list.tasks, chunks...)
-		fmt.Println("tasks assigned", list.tasks)
+		//list.tasks = append(list.tasks, chunks...)
+		list.Append(chunks)
+		fmt.Println("tasks assigned", list.Tasks())
 	}
 	var radioClient = RadioClient{
 		client:    client,
@@ -115,26 +168,29 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		list:      list,
 	}
 	//fmt.Println("init tasks", radioClient.list)
-	r.locker.Lock()
-	r.clients[client] = &radioClient
-	r.locker.Unlock()
-	for {
-		select {
-		case <-client.GoingClose:
-			client.GoingClose <- true
-			return
-		case chunk := <-radioClient.sendChan:
-			appendToPendings(chunk, radioClient.list)
-			break
-		case chunk := <-radioClient.writeChan:
-			appendToPendings(chunk, radioClient.list)
-			break
-		default:
-			time.Sleep(time.Millisecond * 1500)
-			fetchAndSend(client, radioClient.list, r.file)
-		}
 
-	}
+	r.clients[client] = &radioClient
+
+	go func() {
+		for {
+			select {
+			case <-client.GoingClose:
+				client.GoingClose <- true
+				return
+			case chunk := <-radioClient.sendChan:
+				appendToPendings(chunk, radioClient.list)
+				break
+			case chunk := <-radioClient.writeChan:
+				fmt.Println("write chan happened")
+				appendToPendings(chunk, radioClient.list)
+				break
+			default:
+				time.Sleep(time.Millisecond * 300)
+				fetchAndSend(client, radioClient.list, r.file)
+			}
+
+		}
+	}()
 }
 
 func (r *Radio) FileSize() int64 {
@@ -167,11 +223,10 @@ func (r *Radio) send(data []byte) {
 func (r *Radio) write(data []byte) {
 	var oldPos = r.file.WholeSize()
 	wrote, err := r.file.Write(data)
-	fmt.Println("wrote", wrote, data)
+	fmt.Println("wrote", wrote, "into radio")
 	if err != nil {
 		panic(err)
 	}
-	//fmt.Println("file is", r.file.WholeSize())
 	for _, cli := range r.clientList() {
 		cli.writeChan <- FileChunk{
 			Start:  oldPos,
