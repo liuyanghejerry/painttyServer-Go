@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type RoomOption struct {
@@ -129,26 +130,36 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				fmt.Println("Room is going go close")
 				return
 			case pkg, ok := <-client.PackageChan:
-				if ok {
+				if !ok {
+					return
+				}
+				go func() {
 					switch pkg.PackageType {
 					case Socket.COMMAND:
 						m.router.OnMessage(pkg.Unpacked, client)
 					case Socket.DATA:
-						m.radio.WriteChan <- Radio.RadioSendPart{
+						select {
+						case m.radio.WriteChan <- Radio.RadioSendPart{
 							Data: pkg.Repacked,
+						}:
+						case <-time.After(time.Second * 5):
+							fmt.Println("WriteChan failed in processClient")
 						}
 					case Socket.MESSAGE:
-						m.radio.SendChan <- Radio.RadioSendPart{
+						select {
+						case m.radio.SendChan <- Radio.RadioSendPart{
 							Data: pkg.Repacked,
+						}:
+						case <-time.After(time.Second * 5):
+							fmt.Println("SendChan failed in processClient")
 						}
 					}
-				} else {
-					return
-				}
+				}()
 			case _, _ = <-client.GoingClose:
 				m.locker.Lock()
 				delete(m.clients, client)
 				m.locker.Unlock()
+				fmt.Println("client removed from room")
 				return
 			}
 		}
