@@ -101,8 +101,7 @@ func (m *Room) Run() error {
 	go func() {
 		for {
 			select {
-			case <-m.GoingClose:
-				m.GoingClose <- true // feed to other goros
+			case _, _ = <-m.GoingClose:
 				return
 			default:
 				conn, err := m.ln.AcceptTCP()
@@ -126,32 +125,30 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 	go func() {
 		for {
 			select {
-			case <-m.GoingClose:
+			case _, _ = <-m.GoingClose:
 				fmt.Println("Room is going go close")
-				m.GoingClose <- true
 				return
-			case pkg := <-client.PackageChan:
-				switch pkg.PackageType {
-				case Socket.COMMAND:
-					m.router.OnMessage(pkg.Unpacked, client)
-					break
-				case Socket.DATA:
-					m.radio.WriteChan <- Radio.RadioSendPart{
-						Data: pkg.Repacked,
+			case pkg, ok := <-client.PackageChan:
+				if ok {
+					switch pkg.PackageType {
+					case Socket.COMMAND:
+						m.router.OnMessage(pkg.Unpacked, client)
+					case Socket.DATA:
+						m.radio.WriteChan <- Radio.RadioSendPart{
+							Data: pkg.Repacked,
+						}
+					case Socket.MESSAGE:
+						m.radio.SendChan <- Radio.RadioSendPart{
+							Data: pkg.Repacked,
+						}
 					}
-					break
-				case Socket.MESSAGE:
-					m.radio.SendChan <- Radio.RadioSendPart{
-						Data: pkg.Repacked,
-					}
-					break
+				} else {
+					return
 				}
-				break
-			case <-client.GoingClose:
+			case _, _ = <-client.GoingClose:
 				m.locker.Lock()
 				delete(m.clients, client)
 				m.locker.Unlock()
-				client.GoingClose <- true
 				return
 			}
 		}

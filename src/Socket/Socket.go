@@ -13,6 +13,7 @@ type SocketClient struct {
 
 // TODO: due with error
 func (c *SocketClient) WriteRaw(data []byte) (int, error) {
+	defer func() { recover() }()
 	c.rawChan <- data
 	return len(data), nil
 }
@@ -70,7 +71,9 @@ func (c *SocketClient) SendManagerPack(data []byte) (int, error) {
 }
 
 func (c *SocketClient) Close() error {
-	c.GoingClose <- true
+	close(c.GoingClose)
+	close(c.PackageChan)
+	close(c.rawChan)
 	fmt.Println("client closed")
 	return c.con.Close()
 }
@@ -88,15 +91,17 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	go func() {
 		for {
 			select {
-			case <-client.GoingClose:
-				// the connection is going to close
-				client.GoingClose <- true // feed to other goroutines
+			case _, _ = <-client.GoingClose:
 				return
-			case data := <-client.rawChan:
-				client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
-				_, err := client.con.Write(data)
-				if err != nil {
-					client.Close()
+			case data, ok := <-client.rawChan:
+				if ok {
+					client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
+					_, err := client.con.Write(data)
+					if err != nil {
+						client.Close()
+					}
+				} else {
+					return
 				}
 			}
 		}
@@ -105,9 +110,7 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	go func() {
 		for {
 			select {
-			case <-client.GoingClose:
-				// the connection is going to close
-				client.GoingClose <- true // feed to other goroutines
+			case _, _ = <-client.GoingClose:
 				return
 			default:
 				var buffer []byte = make([]byte, 128)
@@ -129,13 +132,17 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	go func() {
 		for {
 			select {
-			case <-client.GoingClose:
-				client.GoingClose <- true
-				// the connection is going to close
+			case _, _ = <-client.GoingClose:
 				return
-			case pkg := <-reader.PackageChan:
-				// pipe Package into public scope
-				client.PackageChan <- pkg
+			case pkg, ok := <-reader.PackageChan:
+				if !ok {
+					return
+				}
+				func() {
+					defer func() { recover() }()
+					// pipe Package into public scope
+					client.PackageChan <- pkg
+				}()
 			}
 		}
 	}()

@@ -51,8 +51,7 @@ func (m *RoomManager) Run() error {
 		defer wg.Done()
 		for {
 			select {
-			case <-m.goingClose:
-				m.goingClose <- true // feed to other goros
+			case _, _ = <-m.goingClose:
 				return
 			default:
 				conn, err := m.ln.AcceptTCP()
@@ -75,16 +74,17 @@ func (m *RoomManager) processClient(client *Socket.SocketClient) {
 	go func() {
 		for {
 			select {
-			case <-m.goingClose:
-				m.goingClose <- true
+			case _, _ = <-m.goingClose:
 				return
-			case pkg := <-client.PackageChan:
-				if pkg.PackageType == Socket.MANAGER {
-					m.router.OnMessage(pkg.Unpacked, client)
+			case pkg, ok := <-client.PackageChan:
+				if ok {
+					if pkg.PackageType == Socket.MANAGER {
+						m.router.OnMessage(pkg.Unpacked, client)
+					}
+				} else {
+					return
 				}
-				break
-			case <-client.GoingClose:
-				client.GoingClose <- true
+			case _, _ = <-client.GoingClose:
 				return
 			}
 		}
