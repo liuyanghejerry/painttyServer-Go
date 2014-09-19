@@ -92,9 +92,8 @@ func (m *Room) Key() string {
 
 func (m *Room) CurrentLoad() int {
 	m.locker.Lock()
-	var length = len(m.clients)
-	m.locker.Unlock()
-	return length
+	defer m.locker.Unlock()
+	return len(m.clients)
 }
 
 func (m *Room) Run() error {
@@ -107,7 +106,7 @@ func (m *Room) Run() error {
 			default:
 				conn, err := m.ln.AcceptTCP()
 				if err != nil {
-					// handle error
+					// TODO: handle error
 					panic(err)
 					continue
 				}
@@ -128,15 +127,17 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 			select {
 			case _, _ = <-m.GoingClose:
 				fmt.Println("Room is going go close")
+				m.removeAllClient()
 				return
 			case pkg, ok := <-client.PackageChan:
 				if !ok {
+					m.removeClient(client)
 					return
 				}
 				go func() {
 					switch pkg.PackageType {
 					case Socket.COMMAND:
-						m.router.OnMessage(pkg.Unpacked, client)
+						go m.router.OnMessage(pkg.Unpacked, client)
 					case Socket.DATA:
 						select {
 						case m.radio.WriteChan <- Radio.RadioSendPart{
@@ -156,14 +157,31 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 					}
 				}()
 			case _, _ = <-client.GoingClose:
-				m.locker.Lock()
-				delete(m.clients, client)
-				m.locker.Unlock()
-				fmt.Println("client removed from room")
+				m.removeClient(client)
+				return
+			case <-time.After(time.Second * 10):
+				fmt.Println("processClient blocked detected")
+				m.removeClient(client)
 				return
 			}
 		}
 	}()
+}
+
+func (m *Room) removeClient(client *Socket.SocketClient) {
+	fmt.Println("would like to remove client from room")
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	delete(m.clients, client)
+	fmt.Println("client removed from room")
+}
+
+func (m *Room) removeAllClient() {
+	fmt.Println("would like to remove client from room")
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	m.clients = make(map[*Socket.SocketClient]string)
+	fmt.Println("client removed from room")
 }
 
 func ServeRoom(opt RoomOption) (*Room, error) {

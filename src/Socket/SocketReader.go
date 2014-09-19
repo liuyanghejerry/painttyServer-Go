@@ -74,14 +74,20 @@ func (r *SocketReader) OnData(chunk []byte) {
 				uncompressed_data,
 				repacked,
 			}
-			r.PackageChan <- p
+			func() {
+				defer func() { recover() }()
+				r.PackageChan <- p
+			}()
 		} else {
 			var p = Package{
 				p_header.PackType,
 				dataBlock,
 				repacked,
 			}
-			r.PackageChan <- p
+			func() {
+				defer func() { recover() }()
+				r.PackageChan <- p
+			}()
 		}
 
 		r.dataSize = 0

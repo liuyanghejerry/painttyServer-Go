@@ -4,7 +4,7 @@ package BufferedFile
 
 import (
 	"errors"
-	"fmt"
+	//"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -62,7 +62,7 @@ func (f *BufferedFile) startWriteTimer() {
 				return
 			default:
 				time.Sleep(f.option.WriteCycle)
-				fmt.Println("auto sync")
+				//fmt.Println("auto sync")
 				if err := f.Sync(); err != nil {
 					panic(err)
 				}

@@ -109,9 +109,10 @@ func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *Buffer
 			return
 		}
 		fmt.Println("write to client", len(buf))
-		client.WriteRaw(buf)
+		go client.WriteRaw(buf)
 	case RAMChunk:
-		client.WriteRaw(item.(RAMChunk).Data)
+		fmt.Println("write ram chunk to client", len(item.(RAMChunk).Data))
+		go client.WriteRaw(item.(RAMChunk).Data)
 	}
 }
 

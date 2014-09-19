@@ -176,15 +176,13 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		for {
 			select {
 			case _, _ = <-client.GoingClose:
-				fmt.Println("auto remove closed client from radio")
-				r.locker.Lock()
-				delete(r.clients, client)
-				r.locker.Unlock()
+				r.RemoveClient(client)
 				return
 			case chunk, ok := <-radioClient.sendChan:
 				if ok {
 					appendToPendings(chunk, radioClient.list)
 				} else {
+					r.RemoveClient(client)
 					return
 				}
 			case chunk, ok := <-radioClient.writeChan:
@@ -192,6 +190,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 					fmt.Println("write chan happened")
 					appendToPendings(chunk, radioClient.list)
 				} else {
+					r.RemoveClient(client)
 					return
 				}
 			default:
@@ -201,6 +200,13 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 
 		}
 	}()
+}
+
+func (r *Radio) RemoveClient(client *Socket.SocketClient) {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	fmt.Println("remove client from radio")
+	delete(r.clients, client)
 }
 
 func (r *Radio) FileSize() int64 {
@@ -220,6 +226,7 @@ func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 		select {
 		case cli.sendChan <- RAMChunk{data}:
 		case <-time.After(time.Second * 10):
+			r.RemoveClient(client)
 			fmt.Println("sendChan failed in singleSend")
 		}
 	}()
@@ -227,11 +234,15 @@ func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 
 // Send expected Buffer that send to every Client but doesn't record.
 func (r *Radio) send(data []byte) {
-	for _, cli := range r.clientList() {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	for client, cli := range r.clients {
 		go func() {
+			defer func() { recover() }()
 			select {
 			case cli.sendChan <- RAMChunk{data}:
 			case <-time.After(time.Second * 10):
+				r.RemoveClient(client)
 				fmt.Println("sendChan failed in send")
 			}
 		}()
@@ -247,30 +258,26 @@ func (r *Radio) write(data []byte) {
 	if err != nil {
 		panic(err)
 	}
-	for _, cli := range r.clientList() {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	for client, cli := range r.clients {
 		fmt.Println("published")
 		go func() {
+			defer func() {
+				// in case cli.writeChan is closed
+				recover()
+			}()
 			select {
 			case cli.writeChan <- FileChunk{
 				Start:  oldPos,
 				Length: int64(len(data)),
 			}:
 			case <-time.After(time.Second * 10):
+				r.RemoveClient(client)
 				fmt.Println("writeChan failed in write")
 			}
 		}()
 	}
-}
-
-func (r *Radio) clientList() []*RadioClient {
-	r.locker.Lock()
-	defer r.locker.Unlock()
-
-	list := make([]*RadioClient, 0)
-	for _, cli := range r.clients {
-		list = append(list, cli)
-	}
-	return list
 }
 
 func (r *Radio) run() {
@@ -279,23 +286,20 @@ func (r *Radio) run() {
 		case _, _ = <-r.GoingClose:
 			return
 		case part, ok := <-r.SendChan:
-			if ok {
-				r.send(part.Data)
-			} else {
+			if !ok {
 				return
 			}
+			r.send(part.Data)
 		case part, ok := <-r.SingleSendChan:
-			if ok {
-				r.singleSend(part.Data, part.Client)
-			} else {
+			if !ok {
 				return
 			}
+			r.singleSend(part.Data, part.Client)
 		case part, ok := <-r.WriteChan:
-			if ok {
-				r.write(part.Data)
-			} else {
+			if !ok {
 				return
 			}
+			r.write(part.Data)
 		}
 	}
 }

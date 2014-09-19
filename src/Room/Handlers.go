@@ -32,8 +32,7 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 	}
 	_, err = client.SendCommandPack(raw)
 	if err != nil {
-		//panic(err)
-		client.GoingClose <- true
+		client.Close()
 	}
 }
 
@@ -52,8 +51,7 @@ func (m *Room) handleHeartbeat(data []byte, client *Socket.SocketClient) {
 	fmt.Println(req, resp)
 	_, err = client.SendCommandPack(raw)
 	if err != nil {
-		//panic(err)
-		client.GoingClose <- true
+		client.Close()
 	}
 }
 
@@ -74,8 +72,7 @@ func (m *Room) handleArchiveSign(data []byte, client *Socket.SocketClient) {
 	fmt.Println(req, resp)
 	_, err = client.SendCommandPack(raw)
 	if err != nil {
-		//panic(err)
-		client.GoingClose <- true
+		client.Close()
 	}
 }
 
@@ -117,8 +114,7 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 	fmt.Println(req, resp)
 	_, err = client.SendCommandPack(raw)
 	if err != nil {
-		//panic(err)
-		client.GoingClose <- true
+		client.Close()
 	}
 
 	if resp.Result {
@@ -156,7 +152,6 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 	fmt.Println(req, resp)
 	_, err = client.SendCommandPack(raw)
 	if err != nil {
-		//panic(err)
-		client.GoingClose <- true
+		client.Close()
 	}
 }
