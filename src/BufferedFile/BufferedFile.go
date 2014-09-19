@@ -54,13 +54,11 @@ func (f *BufferedFile) fetchFileSize() error {
 	return err
 }
 
-// FIXME: not working
 func (f *BufferedFile) startWriteTimer() {
 	go func() {
 		for {
 			select {
-			case <-f.goingClose:
-				f.goingClose <- true
+			case _, _ = <-f.goingClose:
 				return
 			default:
 				time.Sleep(f.option.WriteCycle)
@@ -94,12 +92,32 @@ func (f *BufferedFile) Sync() error {
 	return err
 }
 
+func (f *BufferedFile) innerSync() error {
+	defer func() {
+		f.file.Close()
+		f.openForRead()
+	}()
+	var mark = atomic.LoadInt64(&f.waterMark)
+	//fmt.Println("watermark read", mark)
+	if mark < 1 {
+		return nil
+	}
+	//fmt.Println("write to system file", mark)
+	_, err := f.file.Write(f.buffer[0:mark])
+	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
+	atomic.AddInt64(&f.fileSize, mark)
+	//f.waterMark = 0
+	atomic.StoreInt64(&f.waterMark, 0)
+	return err
+}
+
 func (f *BufferedFile) Close() error {
 	err := f.Sync()
 	if err != nil {
 		return err
 	}
 	err = f.file.Close()
+	close(f.goingClose)
 	return err
 }
 
@@ -121,10 +139,12 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 	var err error = nil
 	// left room not enough
 	if left <= length {
-		err = f.Sync()
+		err = f.innerSync()
 		if err != nil {
 			return 0, err
 		}
+		// sync updated waterMark and buffer
+		left = int64(len(f.buffer)) - atomic.LoadInt64(&f.waterMark)
 	}
 	// buffer cannot contain such big write
 	// directly write into file
