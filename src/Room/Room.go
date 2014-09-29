@@ -88,6 +88,7 @@ func (m *Room) init() error {
 	m.ln, err = net.ListenTCP("tcp", addr)
 	if err != nil {
 		// handle error
+		// TODO: handle port already in use
 		return err
 	}
 	_, port, err := net.SplitHostPort(m.ln.Addr().String())
