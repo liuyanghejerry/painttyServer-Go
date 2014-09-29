@@ -29,7 +29,6 @@ type Room struct {
 	radio       *Radio.Radio
 	clients     map[*Socket.SocketClient]string
 	expiration  int
-	salt        string
 	key         string
 	archiveSign string
 	port        uint16
@@ -43,27 +42,49 @@ func init() {
 	config = Config.GetConfig()
 }
 
+func (m *Room) Close() {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	m.radio.Close()
+	m.removeAllClient()
+	m.ln.Close()
+}
+
 func (m *Room) init() error {
 	m.clients = make(map[*Socket.SocketClient]string)
 	m.GoingClose = make(chan bool)
 	m.router = Router.MakeRouter()
-	var source = append([]byte(m.Options.Name),
-		[]byte(m.Options.Password)...)
-	m.key = genSignedKey(source)
-	radio, err := Radio.MakeRadio(m.key + ".data")
-	m.radio = radio
-	m.expiration = 48
-	m.router.Register("login", m.handleJoin)
-	m.router.Register("heartbeat", m.handleHeartbeat)
-	m.router.Register("archivesign", m.handleArchiveSign)
-	m.router.Register("archive", m.handleArchive)
-	m.router.Register("clearall", m.handleClearAll)
 
-	addr, err := net.ResolveTCPAddr("tcp", ":0")
-	if err != nil {
-		// handle error
-		return err
+	var addr *net.TCPAddr
+	var err error
+
+	if len(m.key) > 0 {
+		// recover
+		addr, err = net.ResolveTCPAddr("tcp",
+			":"+strconv.FormatInt(int64(m.port), 10))
+		if err != nil {
+			// handle error
+			return err
+		}
+	} else {
+		// new-create
+		var source = append([]byte(m.Options.Name),
+			[]byte(m.Options.Password)...)
+		m.key = genSignedKey(source)
+		fmt.Println("key", m.key)
+		m.expiration = 48
+
+		addr, err = net.ResolveTCPAddr("tcp", ":0")
+		if err != nil {
+			// handle error
+			return err
+		}
+		m.archiveSign = genArchiveSign(m.Options.Name)
 	}
+
+	radio, err := Radio.MakeRadio(m.archiveSign + ".data")
+	m.radio = radio
+
 	m.ln, err = net.ListenTCP("tcp", addr)
 	if err != nil {
 		// handle error
@@ -79,6 +100,13 @@ func (m *Room) init() error {
 		return err
 	}
 	fmt.Println("port", m.port)
+
+	m.router.Register("login", m.handleJoin)
+	m.router.Register("heartbeat", m.handleHeartbeat)
+	m.router.Register("archivesign", m.handleArchiveSign)
+	m.router.Register("archive", m.handleArchive)
+	m.router.Register("clearall", m.handleClearAll)
+
 	return nil
 }
 
@@ -94,6 +122,10 @@ func (m *Room) CurrentLoad() int {
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	return len(m.clients)
+}
+
+func (m *Room) Dump() []byte {
+	return dumpRoom(m)
 }
 
 func (m *Room) Run() error {
@@ -188,6 +220,22 @@ func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
 		Options: opt,
 		locker:  &sync.Mutex{},
+	}
+	if err := room.init(); err != nil {
+		return &Room{}, err
+	}
+
+	return &room, nil
+}
+
+func RecoverRoom(info *RoomRuntimeInfo) (*Room, error) {
+	var room = Room{
+		port:        info.Port,
+		expiration:  info.Expiration,
+		archiveSign: info.ArchiveSign,
+		key:         info.Key,
+		Options:     info.Options,
+		locker:      &sync.Mutex{},
 	}
 	if err := room.init(); err != nil {
 		return &Room{}, err

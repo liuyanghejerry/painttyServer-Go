@@ -132,7 +132,7 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 		Result:   false,
 	}
 
-	m.radio.Prune()
+	m.archiveSign = m.radio.Prune()
 
 	var action = ClearAllAction{
 		Action:    "clearall",

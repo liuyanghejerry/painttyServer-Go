@@ -119,7 +119,7 @@ func (r *Radio) Signature() string {
 	return r.signature
 }
 
-func (r *Radio) Prune() {
+func (r *Radio) Prune() string {
 	r.locker.Lock()
 	defer r.locker.Unlock()
 	for _, v := range r.clients {
@@ -131,7 +131,8 @@ func (r *Radio) Prune() {
 	if err := r.file.Clear(); err != nil {
 		panic(err)
 	}
-	r.signature = genSignature()
+	r.signature = genArchiveSign(r.signature)
+	return r.signature
 }
 
 func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
@@ -305,11 +306,12 @@ func (r *Radio) run() {
 }
 
 func MakeRadio(fileName string) (*Radio, error) {
-	var file, err = BufferedFile.MakeBufferedFile(BufferedFile.BufferedFileOption{
-		fileName,
-		time.Second * 3,
-		1024 * 100,
-	})
+	var file, err = BufferedFile.MakeBufferedFile(
+		BufferedFile.BufferedFileOption{
+			fileName,
+			time.Second * 3,
+			1024 * 100,
+		})
 	if err != nil {
 		return &Radio{}, err
 	}
@@ -321,7 +323,7 @@ func MakeRadio(fileName string) (*Radio, error) {
 		SendChan:       make(chan RadioSendPart),
 		WriteChan:      make(chan RadioSendPart),
 		locker:         sync.Mutex{},
-		signature:      genSignature(), // TODO: recovery
+		signature:      fileName, // TODO: recovery
 	}
 	go radio.run()
 	return radio, nil

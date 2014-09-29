@@ -1,9 +1,15 @@
 package Radio
 
-import "BufferedFile"
-import "Socket"
-import "github.com/dustin/randbo"
-import "encoding/hex"
+import (
+	"BufferedFile"
+	"Socket"
+	"encoding/hex"
+	xxhash "github.com/OneOfOne/xxhash/native"
+	"github.com/dustin/randbo"
+	"io"
+	"strconv"
+	"strings"
+)
 
 import "fmt"
 
@@ -116,8 +122,12 @@ func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *Buffer
 	}
 }
 
-func genSignature() string {
+func genArchiveSign(name string) string {
+	h := xxhash.New64()
 	var buf = make([]byte, 16)
 	randbo.New().Read(buf)
-	return hex.EncodeToString(buf)
+	r := strings.NewReader(name + hex.EncodeToString(buf))
+	io.Copy(h, r)
+	hash := h.Sum64()
+	return strconv.FormatUint(hash, 32)
 }

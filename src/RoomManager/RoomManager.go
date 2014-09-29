@@ -1,13 +1,17 @@
 package RoomManager
 
 import (
-	//"fmt"
+	"fmt"
 	//"log"
 	"Room"
 	"Router"
 	"Socket"
+	"github.com/syndtr/goleveldb/leveldb"
+	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 	"net"
+	//"strings"
 	"sync"
+	//"time"
 )
 
 type RoomManager struct {
@@ -17,6 +21,7 @@ type RoomManager struct {
 	router      *Router.Router
 	rooms       map[string]*Room.Room
 	roomsLocker sync.Mutex
+	db          *leveldb.DB
 }
 
 func (m *RoomManager) init() error {
@@ -37,7 +42,54 @@ func (m *RoomManager) init() error {
 		// handle error
 		return err
 	}
+
+	m.recovery()
+
 	return nil
+}
+
+func (m *RoomManager) recovery() error {
+	db, err := leveldb.OpenFile("./db", nil)
+	m.db = db
+
+	iter := db.NewIterator(dbutil.BytesPrefix([]byte("room-")), nil)
+	for iter.Next() {
+		// Use key/value.
+		//key := iter.Key()
+		value := iter.Value()
+		info := parseRoomRuntimeInfo(value)
+		room, err := Room.RecoverRoom(info)
+		fmt.Println("Room recovered", string(value))
+		if err != nil {
+			panic(err)
+		}
+
+		m.roomsLocker.Lock()
+		m.rooms[room.Options.Name] = room
+		m.roomsLocker.Unlock()
+		room.Run()
+		go func() {
+			_, _ = <-room.GoingClose
+			m.roomsLocker.Lock()
+			delete(m.rooms, room.Options.Name)
+			m.roomsLocker.Unlock()
+			return
+		}()
+	}
+	iter.Release()
+	err = iter.Error()
+	return err
+}
+
+func (m *RoomManager) Close() {
+	m.roomsLocker.Lock()
+	defer m.roomsLocker.Unlock()
+	close(m.goingClose)
+	m.db.Close()
+	for _, room := range m.clients {
+		room.Close()
+	}
+	m.ln.Close()
 }
 
 func (m *RoomManager) Run() error {
@@ -66,6 +118,10 @@ func (m *RoomManager) Run() error {
 
 		}
 	}()
+	//go func() {
+	//	<-time.After(time.Minute)
+	//	m.Close()
+	//}()
 	wg.Wait()
 	return nil
 }
