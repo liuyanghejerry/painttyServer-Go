@@ -5,10 +5,11 @@ import (
 	"Room"
 	"Router"
 	"Socket"
-	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
+	"log"
 	"net"
+	"strconv"
 	"sync"
 	//"time"
 )
@@ -33,12 +34,13 @@ func (m *RoomManager) init() error {
 
 	config := Config.GetConfig()
 
-	ideal_port, ok := config["manager_port"].(string)
-	if len(ideal_port) <= 0 || !ok {
-		ideal_port = "18573"
+	ideal_port, ok := config["manager_port"].(int)
+	if ideal_port <= 0 || !ok {
+		log.Println("Manager port is not configured, using default ", ideal_port)
+		ideal_port = 18573
 	}
 
-	var addr, err = net.ResolveTCPAddr("tcp", ":"+ideal_port)
+	var addr, err = net.ResolveTCPAddr("tcp", ":"+strconv.Itoa(ideal_port))
 	if err != nil {
 		// handle error
 		return err
@@ -48,6 +50,8 @@ func (m *RoomManager) init() error {
 		// handle error
 		return err
 	}
+
+	log.Println("RoomManager is listening on port", ideal_port)
 
 	m.recovery()
 
@@ -65,7 +69,7 @@ func (m *RoomManager) recovery() error {
 		value := iter.Value()
 		info := parseRoomRuntimeInfo(value)
 		room, err := Room.RecoverRoom(info)
-		fmt.Println("Room recovered", string(value))
+		log.Println("Room recovered", string(value))
 		if err != nil {
 			panic(err)
 		}

@@ -1,3 +1,4 @@
 --- # Main Configuration
-   salt: salt.key
+   salt: "salt.key"
    manager_port: 18573
+   data_dir: "data"

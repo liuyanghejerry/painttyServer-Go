@@ -2,7 +2,7 @@ package Socket
 
 import "net"
 import "time"
-import "fmt"
+import "log"
 import "sync"
 
 type SocketClient struct {
@@ -83,7 +83,7 @@ func (c *SocketClient) Close() {
 		close(c.PackageChan)
 		close(c.rawChan)
 		c.con.Close()
-		fmt.Println("client closed")
+		log.Println("client closed")
 	})
 }
 
@@ -105,19 +105,19 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 				return
 			case data, ok := <-client.rawChan:
 				if !ok {
-					fmt.Println("client rawChan already closed")
+					log.Println("client rawChan already closed")
 					client.Close()
 					return
 				}
 				client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
 				_, err := client.con.Write(data)
 				if err != nil {
-					fmt.Println("cannot make write on client")
+					log.Println("cannot make write on client")
 					client.Close()
 					return
 				}
 			case <-time.After(20 * time.Second):
-				fmt.Println("client write timeout")
+				log.Println("client write timeout")
 				client.Close()
 			}
 		}

@@ -4,7 +4,7 @@ package BufferedFile
 
 import (
 	"errors"
-	//"fmt"
+	//"log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -62,7 +62,7 @@ func (f *BufferedFile) startWriteTimer() {
 				return
 			default:
 				time.Sleep(f.option.WriteCycle)
-				//fmt.Println("auto sync")
+				//log.Println("auto sync")
 				if err := f.Sync(); err != nil {
 					panic(err)
 				}
@@ -79,11 +79,11 @@ func (f *BufferedFile) Sync() error {
 		f.locker.Unlock()
 	}()
 	var mark = atomic.LoadInt64(&f.waterMark)
-	//fmt.Println("watermark read", mark)
+	//log.Println("watermark read", mark)
 	if mark < 1 {
 		return nil
 	}
-	//fmt.Println("write to system file", mark)
+	//log.Println("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
 	atomic.AddInt64(&f.fileSize, mark)
@@ -98,11 +98,11 @@ func (f *BufferedFile) innerSync() error {
 		f.openForRead()
 	}()
 	var mark = atomic.LoadInt64(&f.waterMark)
-	//fmt.Println("watermark read", mark)
+	//log.Println("watermark read", mark)
 	if mark < 1 {
 		return nil
 	}
-	//fmt.Println("write to system file", mark)
+	//log.Println("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
 	atomic.AddInt64(&f.fileSize, mark)

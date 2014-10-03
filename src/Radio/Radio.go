@@ -2,7 +2,7 @@ package Radio
 
 import "time"
 
-import "fmt"
+import "log"
 import "Socket"
 import "BufferedFile"
 import "sync"
@@ -161,7 +161,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 			Length: chunkSize,
 		})
 		list.Append(chunks)
-		fmt.Println("tasks assigned", list.Tasks())
+		log.Println("tasks assigned", list.Tasks())
 	}
 	var radioClient = RadioClient{
 		client:    client,
@@ -169,7 +169,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		writeChan: make(chan FileChunk),
 		list:      list,
 	}
-	//fmt.Println("init tasks", radioClient.list)
+	//log.Println("init tasks", radioClient.list)
 
 	r.clients[client] = &radioClient
 
@@ -188,7 +188,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 				}
 			case chunk, ok := <-radioClient.writeChan:
 				if ok {
-					fmt.Println("write chan happened")
+					log.Println("write chan happened")
 					appendToPendings(chunk, radioClient.list)
 				} else {
 					r.RemoveClient(client)
@@ -206,7 +206,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 func (r *Radio) RemoveClient(client *Socket.SocketClient) {
 	r.locker.Lock()
 	defer r.locker.Unlock()
-	fmt.Println("remove client from radio")
+	log.Println("remove client from radio")
 	delete(r.clients, client)
 }
 
@@ -228,7 +228,7 @@ func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 		case cli.sendChan <- RAMChunk{data}:
 		case <-time.After(time.Second * 10):
 			r.RemoveClient(client)
-			fmt.Println("sendChan failed in singleSend")
+			log.Println("sendChan failed in singleSend")
 		}
 	}()
 }
@@ -244,7 +244,7 @@ func (r *Radio) send(data []byte) {
 			case cli.sendChan <- RAMChunk{data}:
 			case <-time.After(time.Second * 10):
 				r.RemoveClient(client)
-				fmt.Println("sendChan failed in send")
+				log.Println("sendChan failed in send")
 			}
 		}()
 
@@ -255,14 +255,14 @@ func (r *Radio) send(data []byte) {
 func (r *Radio) write(data []byte) {
 	var oldPos = r.file.WholeSize()
 	wrote, err := r.file.Write(data)
-	fmt.Println("wrote", wrote, "into radio")
+	log.Println("wrote", wrote, "into radio")
 	if err != nil {
 		panic(err)
 	}
 	r.locker.Lock()
 	defer r.locker.Unlock()
 	for client, cli := range r.clients {
-		fmt.Println("published")
+		log.Println("published")
 		go func() {
 			defer func() {
 				// in case cli.writeChan is closed
@@ -275,7 +275,7 @@ func (r *Radio) write(data []byte) {
 			}:
 			case <-time.After(time.Second * 10):
 				r.RemoveClient(client)
-				fmt.Println("writeChan failed in write")
+				log.Println("writeChan failed in write")
 			}
 		}()
 	}

@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-import "fmt"
+import "log"
 
 const (
 	CHUNK_SIZE          int64 = 1024 * 400 // Bytes
@@ -56,7 +56,7 @@ func pushRamChunk(chunk RAMChunk, queue *RadioTaskList) {
 }
 
 func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
-	fmt.Println("appended", chunk)
+	log.Println("appended", chunk)
 	switch chunk.(type) {
 	case RAMChunk:
 		pushRamChunk(chunk.(RAMChunk), list)
@@ -95,8 +95,8 @@ func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 }
 
 func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *BufferedFile.BufferedFile) {
-	//fmt.Println("fetchAndSend", list.Tasks())
-	//fmt.Println("tasks fetchAndSend", list.tasks, len(tasks))
+	//log.Println("fetchAndSend", list.Tasks())
+	//log.Println("tasks fetchAndSend", list.tasks, len(tasks))
 	if list.Length() <= 0 {
 		return
 	}
@@ -108,16 +108,16 @@ func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *Buffer
 		var item = item.(FileChunk)
 		var buf = make([]byte, item.Length)
 		length, err := file.ReadAt(buf, item.Start)
-		//fmt.Println("fetched length", length)
+		//log.Println("fetched length", length)
 		if int64(length) != item.Length || err != nil {
 			// move back
 			list.PushFront(item)
 			return
 		}
-		fmt.Println("write to client", len(buf))
+		log.Println("write to client", len(buf))
 		go client.WriteRaw(buf)
 	case RAMChunk:
-		fmt.Println("write ram chunk to client", len(item.(RAMChunk).Data))
+		log.Println("write ram chunk to client", len(item.(RAMChunk).Data))
 		go client.WriteRaw(item.(RAMChunk).Data)
 	}
 }

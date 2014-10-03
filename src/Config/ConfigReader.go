@@ -2,9 +2,9 @@ package Config
 
 import (
 	"crypto/sha512"
-	"fmt"
 	"github.com/dustin/randbo"
 	yaml "gopkg.in/yaml.v1"
+	"log"
 	"os"
 )
 
@@ -14,7 +14,7 @@ func init() {
 	confMap = readConfMap("./config.yml")
 	saltFileName, ok := confMap["salt"].(string)
 	if !ok {
-		fmt.Println("Salt file cannot be determined by config. Using default salt.key...")
+		log.Println("Salt file cannot be determined by config. Using default salt.key...")
 		saltFileName = "salt.key"
 	}
 
@@ -22,7 +22,7 @@ func init() {
 
 	if err != nil {
 		salt = createSaltFile()
-		fmt.Println("Cannot read salt file, creating new salt...")
+		log.Println("Cannot read salt file, creating new salt...")
 	}
 
 	var saltHash = make([]byte, 64, 64)
@@ -39,7 +39,7 @@ func GetConfig() map[interface{}]interface{} {
 func createSaltFile() []byte {
 	file, err := os.Create("./salt.key")
 	if err != nil {
-		fmt.Println("Cannot create salt file.")
+		log.Println("Cannot create salt file.")
 		panic(err)
 	}
 	defer file.Close()
@@ -54,7 +54,7 @@ func createSaltFile() []byte {
 func readSaltFromFile(saltFileName string) ([]byte, error) {
 	saltFile, err := os.Open(saltFileName)
 	if err != nil {
-		fmt.Println("Cannot open salt file.")
+		log.Println("Cannot open salt file.")
 		return make([]byte, 0), err
 	}
 
@@ -62,14 +62,14 @@ func readSaltFromFile(saltFileName string) ([]byte, error) {
 
 	fi, err := saltFile.Stat()
 	if err != nil {
-		fmt.Println("Cannot read salt file info.")
+		log.Println("Cannot read salt file info.")
 		return make([]byte, 0), err
 	}
 
 	buf := make([]byte, fi.Size())
 	_, err = saltFile.Read(buf)
 	if err != nil {
-		fmt.Println("Cannot read salt file.")
+		log.Println("Cannot read salt file.")
 		return make([]byte, 0), err
 	}
 
@@ -80,20 +80,20 @@ func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
 	defer func() {
 		if r := recover(); r != nil || conf == nil {
 			conf = make(map[interface{}]interface{})
-			fmt.Println("Making temp config...")
+			log.Println("Making temp config...")
 		}
 	}()
 
 	file, err := os.Open(confFileName)
 	if _, ok := err.(*os.PathError); ok {
-		fmt.Println("Cannot find config file.")
+		log.Println("Cannot find config file.")
 		file, err = os.Create(confFileName)
 		if err != nil {
-			fmt.Println("Cannot create config file.")
+			log.Println("Cannot create config file.")
 			panic(err)
 		}
 	} else if err != nil {
-		fmt.Println("Cannot open config file.")
+		log.Println("Cannot open config file.")
 		panic(err)
 	}
 
@@ -101,7 +101,7 @@ func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
 
 	fi, err := file.Stat()
 	if err != nil {
-		fmt.Println("Cannot read config file info.")
+		log.Println("Cannot read config file info.")
 		panic(err)
 	}
 
@@ -114,7 +114,7 @@ func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
 	var tmp interface{}
 	err = yaml.Unmarshal(buf, &tmp)
 	if err != nil {
-		fmt.Println("Cannot parse config file(as yaml).")
+		log.Println("Cannot parse config file(as yaml).")
 		panic(err)
 	}
 
