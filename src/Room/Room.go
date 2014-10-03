@@ -100,7 +100,6 @@ func (m *Room) init() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("port", m.port)
 
 	m.router.Register("login", m.handleJoin)
 	m.router.Register("heartbeat", m.handleHeartbeat)

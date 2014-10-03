@@ -15,10 +15,12 @@ type SocketClient struct {
 
 // TODO: due with error
 func (c *SocketClient) WriteRaw(data []byte) (int, error) {
-	defer func() { recover() }()
-	fmt.Println("delivering")
+	defer func() {
+		if err := recover(); err != nil {
+			c.Close()
+		}
+	}()
 	c.rawChan <- data
-	fmt.Println("delivered")
 	return len(data), nil
 }
 

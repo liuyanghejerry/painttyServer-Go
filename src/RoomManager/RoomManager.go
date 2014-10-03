@@ -1,15 +1,13 @@
 package RoomManager
 
 import (
-	"fmt"
-	//"log"
 	"Room"
 	"Router"
 	"Socket"
+	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 	"net"
-	//"strings"
 	"sync"
 	//"time"
 )
@@ -92,8 +90,8 @@ func (m *RoomManager) Close() {
 	m.ln.Close()
 }
 
-func (m *RoomManager) Run() error {
-	err := m.init()
+func (m *RoomManager) Run() (err error) {
+	err = m.init()
 	if err != nil {
 		return err
 	}
@@ -118,12 +116,8 @@ func (m *RoomManager) Run() error {
 
 		}
 	}()
-	//go func() {
-	//	<-time.After(time.Minute)
-	//	m.Close()
-	//}()
 	wg.Wait()
-	return nil
+	return err
 }
 
 func (m *RoomManager) processClient(client *Socket.SocketClient) {
