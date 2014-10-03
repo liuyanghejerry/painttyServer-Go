@@ -1,6 +1,7 @@
 package RoomManager
 
 import (
+	"Config"
 	"Room"
 	"Router"
 	"Socket"
@@ -30,7 +31,14 @@ func (m *RoomManager) init() error {
 	m.router.Register("roomlist", m.handleRoomList)
 	m.router.Register("newroom", m.handleNewRoom)
 
-	var addr, err = net.ResolveTCPAddr("tcp", ":8080")
+	config := Config.GetConfig()
+
+	ideal_port, ok := config["manager_port"].(string)
+	if len(ideal_port) <= 0 || !ok {
+		ideal_port = "18573"
+	}
+
+	var addr, err = net.ResolveTCPAddr("tcp", ":"+ideal_port)
 	if err != nil {
 		// handle error
 		return err

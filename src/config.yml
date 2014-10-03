@@ -1,3 +1,4 @@
 {
  salt: 'salt.key'
+ manager_port: 18573
 }
