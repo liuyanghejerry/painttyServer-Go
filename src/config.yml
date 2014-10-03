@@ -1,4 +1,3 @@
-{
- salt: 'salt.key'
- manager_port: 18573
-}
+--- # Main Configuration
+   salt: salt.key
+   manager_port: 18573
