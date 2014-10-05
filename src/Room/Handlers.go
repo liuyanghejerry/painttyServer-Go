@@ -41,7 +41,7 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 		return
 	}
 
-	if len(req.Name) > 16 {
+	if nameLen := len(req.Name); nameLen > 32 || nameLen <= 0 {
 		resp.ErrCode = ErrorCode.LOGIN_INVALID_NAME
 		sendToClient(resp, client)
 		return
