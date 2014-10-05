@@ -34,13 +34,14 @@ func (f *BufferedFile) WholeSize() int64 {
 }
 
 func (f *BufferedFile) openForRead() error {
-	file, err := os.OpenFile(f.option.FileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	file, err := os.OpenFile(f.option.FileName, os.O_RDWR|os.O_CREATE, 0666)
 
 	if err != nil {
 		return err
 	}
 
 	f.file = file
+	file.Seek(0, 2)
 	return nil
 }
 
@@ -124,11 +125,15 @@ func (f *BufferedFile) Close() error {
 func (f *BufferedFile) Clear() error {
 	f.locker.Lock()
 	defer f.locker.Unlock()
+	atomic.StoreInt64(&f.wholeSize, 0)
 	atomic.StoreInt64(&f.waterMark, 0)
 	atomic.StoreInt64(&f.fileSize, 0)
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
-	err := f.file.Truncate(0)
-	return err
+	f.file.Seek(0, 0)
+	if err := f.file.Truncate(0); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (f *BufferedFile) Write(data []byte) (int64, error) {
