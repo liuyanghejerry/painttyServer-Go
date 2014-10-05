@@ -3,19 +3,19 @@ package RoomManager
 import "encoding/json"
 import "Socket"
 import "Room"
-import "fmt"
+import "log"
 import "github.com/syndtr/goleveldb/leveldb/opt"
 
 func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	req := &RoomListRequest{}
 	json.Unmarshal(data, &req)
-	fmt.Println(req.Request)
+	log.Println(req.Request)
 	roomlist := make([]RoomPublicInfo, 0, 100)
 	for _, v := range m.rooms {
 		room := RoomPublicInfo{
 			Name:          v.Options.Name,
 			CurrentLoad:   v.CurrentLoad(),
-			Private:       false, //TODO
+			Private:       len(v.Options.Password) > 0,
 			MaxLoad:       v.Options.MaxLoad,
 			ServerAddress: "0.0.0.0",
 			Port:          v.Port(),
@@ -52,6 +52,8 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 		Height:     req.Info.Size.Height,
 		Name:       req.Info.Name,
 		EmptyClose: req.Info.EmptyClose,
+		WelcomeMsg: req.Info.WelcomeMsg,
+		Password:   req.Info.Password,
 	}
 	room, err := Room.ServeRoom(options)
 	if err != nil {
@@ -64,7 +66,7 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	// insert to db
 	info_to_insert := room.Dump()
 	write_opt := &opt.WriteOptions{false}
-	fmt.Println(room.Options.Name, string(info_to_insert))
+	log.Println(room.Options.Name, string(info_to_insert))
 	m.db.Put([]byte("room-"+room.Options.Name), info_to_insert, write_opt)
 	go func() {
 		_, _ = <-room.GoingClose
@@ -72,7 +74,6 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 		delete(m.rooms, room.Options.Name)
 		m.roomsLocker.Unlock()
 		m.db.Delete([]byte("room-"+room.Options.Name), write_opt)
-		return
 	}()
 
 	var resp = NewRoomResponse{

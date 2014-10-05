@@ -76,6 +76,14 @@ func (c *SocketClient) SendManagerPack(data []byte) (int, error) {
 	return c.sendPack(result)
 }
 
+func AssamblePack(header PackHeader, data []byte) []byte {
+	var result, err = bufferToPack(data, header)
+	if err != nil {
+		return make([]byte, 0)
+	}
+	return result
+}
+
 func (c *SocketClient) Close() {
 	defer func() { recover() }()
 	c.closed.Do(func() {

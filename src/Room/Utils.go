@@ -1,6 +1,8 @@
 package Room
 
 import (
+	//"Radio"
+	//"Socket"
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
@@ -38,10 +40,24 @@ func dumpRoom(room *Room) []byte {
 	return raw
 }
 
-func genClientId() string {
-	var buf = make([]byte, 64)
-	randbo.New().Read(buf)
-	return hex.EncodeToString(buf)
+func (m *Room) broadcastCommand(resp interface{}) {
+	data, err := json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+
+	m.locker.Lock()
+	defer m.locker.Unlock()
+
+	for cli, usr := range m.clients {
+		if len(usr.clientId) > 0 {
+			_, err = cli.SendCommandPack(data)
+			if err != nil {
+				cli.Close()
+			}
+		}
+	}
+
 }
 
 func genSignedKey(source []byte) string {

@@ -12,52 +12,6 @@ type RadioTaskList struct {
 	locker sync.Mutex
 }
 
-func (r *RadioTaskList) Tasks() *[]RadioChunk {
-	r.locker.Lock()
-	defer r.locker.Unlock()
-	return &(r.tasks)
-}
-
-func (r *RadioTaskList) Length() int {
-	r.locker.Lock()
-	defer r.locker.Unlock()
-	return len(r.tasks)
-}
-
-func (r *RadioTaskList) Append(chunks []RadioChunk) {
-	r.locker.Lock()
-	defer r.locker.Unlock()
-	r.tasks = append(r.tasks, chunks...)
-}
-
-func (r *RadioTaskList) PushBack(chunks []RadioChunk) {
-	r.Append(chunks)
-}
-
-func (r *RadioTaskList) PopBack() RadioChunk {
-	r.locker.Lock()
-	defer r.locker.Unlock()
-	var bottomItem = r.tasks[len(r.tasks)-1]
-	r.tasks = r.tasks[:len(r.tasks)-1]
-	return bottomItem
-}
-
-func (r *RadioTaskList) PopFront() RadioChunk {
-	r.locker.Lock()
-	defer r.locker.Unlock()
-	var item = r.tasks[0]
-	r.tasks = r.tasks[1:len(r.tasks)]
-	return item
-}
-
-func (r *RadioTaskList) PushFront(chunk RadioChunk) {
-	r.locker.Lock()
-	defer r.locker.Unlock()
-	r.tasks = append(r.tasks, chunk)
-	copy(r.tasks[1:], r.tasks[0:])
-	r.tasks[0] = chunk
-}
-
 type RadioChunk interface {
 	special() // in case others may mis-use this interface
 }
@@ -175,14 +129,24 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 
 	go func() {
 		for {
+			//r.locker.Lock()
+			//radioClient, ok := r.clients[client]
+			//if !ok {
+			//	r.RemoveClient(client)
+			//	return
+			//}
+			//r.locker.Unlock()
+
 			select {
 			case _, _ = <-client.GoingClose:
 				r.RemoveClient(client)
 				return
 			case chunk, ok := <-radioClient.sendChan:
 				if ok {
+					log.Println("send chan happened")
 					appendToPendings(chunk, radioClient.list)
 				} else {
+					log.Println("send chan miss-matched")
 					r.RemoveClient(client)
 					return
 				}
@@ -191,6 +155,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 					log.Println("write chan happened")
 					appendToPendings(chunk, radioClient.list)
 				} else {
+					log.Println("write chan miss-matched")
 					r.RemoveClient(client)
 					return
 				}
@@ -237,17 +202,17 @@ func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 func (r *Radio) send(data []byte) {
 	r.locker.Lock()
 	defer r.locker.Unlock()
+	fun := func(client *Socket.SocketClient, cli *RadioClient) {
+		defer func() { recover() }()
+		select {
+		case cli.sendChan <- RAMChunk{data}:
+		case <-time.After(time.Second * 10):
+			r.RemoveClient(client)
+			log.Println("sendChan failed in send")
+		}
+	}
 	for client, cli := range r.clients {
-		go func() {
-			defer func() { recover() }()
-			select {
-			case cli.sendChan <- RAMChunk{data}:
-			case <-time.After(time.Second * 10):
-				r.RemoveClient(client)
-				log.Println("sendChan failed in send")
-			}
-		}()
-
+		go fun(client, cli)
 	}
 }
 
@@ -259,25 +224,23 @@ func (r *Radio) write(data []byte) {
 	if err != nil {
 		panic(err)
 	}
+	fun := func(client *Socket.SocketClient, cli *RadioClient) {
+		defer func() { recover() }() // in case cli.writeChan is closed
+		select {
+		case cli.writeChan <- FileChunk{
+			Start:  oldPos,
+			Length: int64(len(data)),
+		}:
+		case <-time.After(time.Second * 10):
+			r.RemoveClient(client)
+			log.Println("writeChan failed in write")
+		}
+	}
 	r.locker.Lock()
 	defer r.locker.Unlock()
 	for client, cli := range r.clients {
 		log.Println("published")
-		go func() {
-			defer func() {
-				// in case cli.writeChan is closed
-				recover()
-			}()
-			select {
-			case cli.writeChan <- FileChunk{
-				Start:  oldPos,
-				Length: int64(len(data)),
-			}:
-			case <-time.After(time.Second * 10):
-				r.RemoveClient(client)
-				log.Println("writeChan failed in write")
-			}
-		}()
+		go fun(client, cli)
 	}
 }
 

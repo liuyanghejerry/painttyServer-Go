@@ -25,12 +25,17 @@ type RoomOption struct {
 	EmptyClose bool
 }
 
+type RoomUser struct {
+	clientId    string
+	bannedCount uint8
+}
+
 type Room struct {
 	ln          *net.TCPListener
 	GoingClose  chan bool
 	router      *Router.Router
 	radio       *Radio.Radio
-	clients     map[*Socket.SocketClient]string
+	clients     map[*Socket.SocketClient]*RoomUser
 	expiration  int
 	key         string
 	archiveSign string
@@ -54,7 +59,7 @@ func (m *Room) Close() {
 }
 
 func (m *Room) init() (err error) {
-	m.clients = make(map[*Socket.SocketClient]string)
+	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	m.GoingClose = make(chan bool)
 	m.router = Router.MakeRouter()
 
@@ -142,6 +147,15 @@ func (m *Room) Dump() []byte {
 	return dumpRoom(m)
 }
 
+func (m *Room) hasUser(u *Socket.SocketClient) bool {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	if user, ok := m.clients[u]; ok && len(user.clientId) > 0 {
+		return true
+	}
+	return false
+}
+
 func (m *Room) Run() error {
 	log.Println("Room ", m.Options.Name, " is running")
 	go func() {
@@ -153,12 +167,12 @@ func (m *Room) Run() error {
 				conn, err := m.ln.AcceptTCP()
 				if err != nil {
 					// TODO: handle error
-					panic(err)
+					//panic(err)
 					continue
 				}
 				var client = Socket.MakeSocketClient(conn)
 				m.locker.Lock()
-				m.clients[client] = m.genClientId()
+				m.clients[client] = &RoomUser{}
 				m.locker.Unlock()
 				m.processClient(client)
 			}
@@ -226,7 +240,7 @@ func (m *Room) removeAllClient() {
 	log.Println("would like to remove client from room")
 	m.locker.Lock()
 	defer m.locker.Unlock()
-	m.clients = make(map[*Socket.SocketClient]string)
+	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	log.Println("client removed from room")
 }
 
