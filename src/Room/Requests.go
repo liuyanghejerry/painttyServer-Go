@@ -25,3 +25,14 @@ type ClearAllRequest struct {
 	Request string `json: "request"`
 	Key     string `json:"key"`
 }
+
+type KickRequest struct {
+	Request  string `json: "request"`
+	Key      string `json: "key"`
+	ClientId string `json: "clientid"`
+}
+
+type OnlineListRequest struct {
+	Request  string `json: "request"`
+	ClientId string `json: "clientid"`
+}

@@ -124,6 +124,7 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 					client.Close()
 					return
 				}
+				log.Println("wrote succeed")
 			case <-time.After(20 * time.Second):
 				log.Println("client write timeout")
 				client.Close()

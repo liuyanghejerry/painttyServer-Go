@@ -41,6 +41,12 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 		return
 	}
 
+	if len(req.Name) > 16 {
+		resp.ErrCode = ErrorCode.LOGIN_INVALID_NAME
+		sendToClient(resp, client)
+		return
+	}
+
 	clientId := m.genClientId()
 
 	resp = JoinRoomResponse{
@@ -63,6 +69,7 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 	defer m.locker.Unlock()
 	if user, ok := m.clients[client]; ok {
 		user.clientId = clientId
+		user.nickName = req.Name
 	} else {
 		panic("handleJoin found unclean client")
 	}
@@ -152,6 +159,8 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 		Result:   false,
 	}
 
+	log.Println("request key", req.Key, "room key", m.Key())
+
 	if req.Key != m.Key() {
 		sendToClient(resp, client)
 		return
@@ -168,4 +177,57 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 	log.Println(req, resp)
 	sendToClient(resp, client)
 	m.broadcastCommand(action)
+}
+
+func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
+	if !m.hasUser(client) {
+		return
+	}
+	req := &KickRequest{}
+	json.Unmarshal(data, &req)
+
+	var resp = KickResponse{
+		Response: "kick",
+		Result:   false,
+	}
+
+	log.Println("request key", req.Key, "room key", m.Key())
+
+	if req.Key != m.Key() {
+		sendToClient(resp, client)
+		return
+	}
+
+	var action = KickAction{
+		Action: "kick",
+	}
+
+	target := req.ClientId
+
+	if cli := m.findClientById(target); cli != nil {
+		sendToClient(action, cli)
+		m.kickClient(cli)
+	} else {
+		log.Println("Cannot find target client to kick:", target)
+	}
+
+	resp.Result = true
+	log.Println(req, resp)
+	sendToClient(resp, client)
+}
+
+func (m *Room) handleOnlineList(data []byte, client *Socket.SocketClient) {
+	if !m.hasUser(client) {
+		return
+	}
+	req := &OnlineListRequest{}
+	json.Unmarshal(data, &req)
+
+	var resp = OnlineListResponse{
+		Response:   "onlinelist",
+		Result:     true,
+		OnlineList: m.OnlineList(),
+	}
+	log.Println(req, resp)
+	sendToClient(resp, client)
 }

@@ -43,3 +43,19 @@ type ClearAllResponse struct {
 	Response string `json:"response"`
 	Result   bool   `json:"result"`
 }
+
+type KickResponse struct {
+	Response string `json:"response"`
+	Result   bool   `json:"result"`
+}
+
+type OnlineListItem struct {
+	Name     string `json:"name"`
+	ClientId string `json:"clientid"`
+}
+
+type OnlineListResponse struct {
+	Response   string           `json:"response"`
+	Result     bool             `json:"result"`
+	OnlineList []OnlineListItem `json:"onlinelist"`
+}

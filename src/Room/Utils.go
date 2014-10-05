@@ -2,7 +2,7 @@ package Room
 
 import (
 	//"Radio"
-	//"Socket"
+	"Socket"
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
@@ -40,6 +40,17 @@ func dumpRoom(room *Room) []byte {
 	return raw
 }
 
+func (m *Room) findClientById(clientId string) *Socket.SocketClient {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	for client, user := range m.clients {
+		if user.clientId == clientId {
+			return client
+		}
+	}
+	return nil
+}
+
 func (m *Room) broadcastCommand(resp interface{}) {
 	data, err := json.Marshal(resp)
 	if err != nil {
@@ -57,7 +68,6 @@ func (m *Room) broadcastCommand(resp interface{}) {
 			}
 		}
 	}
-
 }
 
 func genSignedKey(source []byte) string {

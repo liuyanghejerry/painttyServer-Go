@@ -26,8 +26,8 @@ type RoomOption struct {
 }
 
 type RoomUser struct {
-	clientId    string
-	bannedCount uint8
+	clientId string
+	nickName string
 }
 
 type Room struct {
@@ -125,6 +125,8 @@ func (m *Room) init() (err error) {
 	m.router.Register("archivesign", m.handleArchiveSign)
 	m.router.Register("archive", m.handleArchive)
 	m.router.Register("clearall", m.handleClearAll)
+	m.router.Register("kick", m.handleKick)
+	m.router.Register("onlinelist", m.handleOnlineList)
 
 	return nil
 }
@@ -141,6 +143,18 @@ func (m *Room) CurrentLoad() int {
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	return len(m.clients)
+}
+
+func (m *Room) OnlineList() (list []OnlineListItem) {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	for _, user := range m.clients {
+		list = append(list, OnlineListItem{
+			Name:     user.nickName,
+			ClientId: user.clientId,
+		})
+	}
+	return list
 }
 
 func (m *Room) Dump() []byte {
@@ -242,6 +256,11 @@ func (m *Room) removeAllClient() {
 	defer m.locker.Unlock()
 	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	log.Println("client removed from room")
+}
+
+func (m *Room) kickClient(target *Socket.SocketClient) {
+	m.removeClient(target)
+	time.AfterFunc(time.Second*10, target.Close)
 }
 
 func ServeRoom(opt RoomOption) (*Room, error) {

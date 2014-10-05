@@ -198,21 +198,44 @@ func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 	}()
 }
 
+func send_helper(
+	client *Socket.SocketClient,
+	cli *RadioClient,
+	data []byte,
+	r *Radio) {
+	defer func() { recover() }()
+	select {
+	case cli.sendChan <- RAMChunk{data}:
+	case <-time.After(time.Second * 10):
+		r.RemoveClient(client)
+		log.Println("sendChan failed in send")
+	}
+}
+
 // Send expected Buffer that send to every Client but doesn't record.
 func (r *Radio) send(data []byte) {
 	r.locker.Lock()
 	defer r.locker.Unlock()
-	fun := func(client *Socket.SocketClient, cli *RadioClient) {
-		defer func() { recover() }()
-		select {
-		case cli.sendChan <- RAMChunk{data}:
-		case <-time.After(time.Second * 10):
-			r.RemoveClient(client)
-			log.Println("sendChan failed in send")
-		}
-	}
 	for client, cli := range r.clients {
-		go fun(client, cli)
+		go send_helper(client, cli, data, r)
+	}
+}
+
+func write_helper(
+	client *Socket.SocketClient,
+	cli *RadioClient,
+	data []byte,
+	r *Radio,
+	oldPos int64) {
+	defer func() { recover() }() // in case cli.writeChan is closed
+	select {
+	case cli.writeChan <- FileChunk{
+		Start:  oldPos,
+		Length: int64(len(data)),
+	}:
+	case <-time.After(time.Second * 10):
+		r.RemoveClient(client)
+		log.Println("writeChan failed in write")
 	}
 }
 
@@ -224,23 +247,12 @@ func (r *Radio) write(data []byte) {
 	if err != nil {
 		panic(err)
 	}
-	fun := func(client *Socket.SocketClient, cli *RadioClient) {
-		defer func() { recover() }() // in case cli.writeChan is closed
-		select {
-		case cli.writeChan <- FileChunk{
-			Start:  oldPos,
-			Length: int64(len(data)),
-		}:
-		case <-time.After(time.Second * 10):
-			r.RemoveClient(client)
-			log.Println("writeChan failed in write")
-		}
-	}
+
 	r.locker.Lock()
 	defer r.locker.Unlock()
 	for client, cli := range r.clients {
 		log.Println("published")
-		go fun(client, cli)
+		go write_helper(client, cli, data, r, oldPos)
 	}
 }
 
