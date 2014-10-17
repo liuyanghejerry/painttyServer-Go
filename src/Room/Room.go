@@ -121,12 +121,12 @@ func (m *Room) init() (err error) {
 	}
 
 	m.router.Register("login", m.handleJoin)
-	m.router.Register("heartbeat", m.handleHeartbeat)
+	//m.router.Register("heartbeat", m.handleHeartbeat)
 	m.router.Register("archivesign", m.handleArchiveSign)
 	m.router.Register("archive", m.handleArchive)
 	m.router.Register("clearall", m.handleClearAll)
 	m.router.Register("kick", m.handleKick)
-	m.router.Register("onlinelist", m.handleOnlineList)
+	//m.router.Register("onlinelist", m.handleOnlineList)
 
 	return nil
 }
@@ -208,34 +208,34 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 					m.removeClient(client)
 					return
 				}
-				go func() {
-					switch pkg.PackageType {
-					case Socket.COMMAND:
-						go m.router.OnMessage(pkg.Unpacked, client)
-					case Socket.DATA:
-						select {
-						case m.radio.WriteChan <- Radio.RadioSendPart{
-							Data: pkg.Repacked,
-						}:
-						case <-time.After(time.Second * 5):
-							log.Println("WriteChan failed in processClient")
-						}
-					case Socket.MESSAGE:
-						select {
-						case m.radio.SendChan <- Radio.RadioSendPart{
-							Data: pkg.Repacked,
-						}:
-						case <-time.After(time.Second * 5):
-							log.Println("SendChan failed in processClient")
-						}
+				//go func() {
+				switch pkg.PackageType {
+				case Socket.COMMAND:
+					m.router.OnMessage(pkg.Unpacked, client)
+				case Socket.DATA:
+					select {
+					case m.radio.WriteChan <- Radio.RadioSendPart{
+						Data: pkg.Repacked,
+					}:
+					case <-time.After(time.Second * 5):
+						log.Println("WriteChan failed in processClient")
 					}
-				}()
+				case Socket.MESSAGE:
+					select {
+					case m.radio.SendChan <- Radio.RadioSendPart{
+						Data: pkg.Repacked,
+					}:
+					case <-time.After(time.Second * 5):
+						log.Println("SendChan failed in processClient")
+					}
+				}
+				//}()
 			case _, _ = <-client.GoingClose:
 				m.removeClient(client)
 				return
 			case <-time.After(time.Second * 10):
 				log.Println("processClient blocked detected")
-				m.removeClient(client)
+				m.kickClient(client)
 				return
 			}
 		}

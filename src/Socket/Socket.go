@@ -95,6 +95,71 @@ func (c *SocketClient) Close() {
 	})
 }
 
+func writeLoop(client *SocketClient, con *net.TCPConn) {
+	for {
+		select {
+		case _, _ = <-client.GoingClose:
+			return
+		case data, ok := <-client.rawChan:
+			if !ok {
+				log.Println("client rawChan already closed")
+				client.Close()
+				return
+			}
+			client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
+			_, err := client.con.Write(data)
+			if err != nil {
+				log.Println("cannot make write on client")
+				client.Close()
+				return
+			}
+			log.Println("wrote succeed")
+		case <-time.After(20 * time.Second):
+			log.Println("client write timeout")
+			//client.Close()
+		}
+	}
+}
+
+func readLoop(client *SocketClient, con *net.TCPConn, reader *SocketReader) {
+	for {
+		select {
+		case _, _ = <-client.GoingClose:
+			return
+		default:
+			var buffer []byte = make([]byte, 128)
+			outBytes, err := con.Read(buffer)
+			con.SetReadDeadline(time.Now().Add(20 * time.Second))
+			if err != nil {
+				client.Close()
+				return
+			}
+			if outBytes == 0 {
+				time.Sleep(1 * time.Second)
+			} else {
+				reader.OnData(buffer[0:outBytes])
+			}
+		}
+
+	}
+}
+
+func pubLoop(client *SocketClient, reader *SocketReader) {
+	defer func() { recover() }()
+	for {
+		select {
+		case _, _ = <-client.GoingClose:
+			return
+		case pkg, ok := <-reader.PackageChan:
+			if !ok {
+				return
+			}
+			// pipe Package into public scope
+			client.PackageChan <- pkg
+		}
+	}
+}
+
 func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	con.SetReadDeadline(time.Now().Add(20 * time.Second))
 	client := SocketClient{
@@ -106,70 +171,9 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	}
 	reader := NewSocketReader()
 
-	go func() {
-		for {
-			select {
-			case _, _ = <-client.GoingClose:
-				return
-			case data, ok := <-client.rawChan:
-				if !ok {
-					log.Println("client rawChan already closed")
-					client.Close()
-					return
-				}
-				client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
-				_, err := client.con.Write(data)
-				if err != nil {
-					log.Println("cannot make write on client")
-					client.Close()
-					return
-				}
-				log.Println("wrote succeed")
-			case <-time.After(20 * time.Second):
-				log.Println("client write timeout")
-				client.Close()
-			}
-		}
-	}()
+	go writeLoop(&client, con)
+	go readLoop(&client, con, &reader)
 
-	go func() {
-		for {
-			select {
-			case _, _ = <-client.GoingClose:
-				return
-			default:
-				var buffer []byte = make([]byte, 128)
-				outBytes, err := con.Read(buffer)
-				con.SetReadDeadline(time.Now().Add(20 * time.Second))
-				if err != nil {
-					client.Close()
-					return
-				}
-				if outBytes == 0 {
-					time.Sleep(1 * time.Second)
-				} else {
-					reader.OnData(buffer[0:outBytes])
-				}
-			}
-
-		}
-	}()
-	go func() {
-		for {
-			select {
-			case _, _ = <-client.GoingClose:
-				return
-			case pkg, ok := <-reader.PackageChan:
-				if !ok {
-					return
-				}
-				func() {
-					defer func() { recover() }()
-					// pipe Package into public scope
-					client.PackageChan <- pkg
-				}()
-			}
-		}
-	}()
+	go pubLoop(&client, &reader)
 	return &client
 }

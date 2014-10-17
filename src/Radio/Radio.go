@@ -127,45 +127,40 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 
 	r.clients[client] = &radioClient
 
-	go func() {
-		for {
-			//r.locker.Lock()
-			//radioClient, ok := r.clients[client]
-			//if !ok {
-			//	r.RemoveClient(client)
-			//	return
-			//}
-			//r.locker.Unlock()
+	go r.processClient(client, &radioClient)
+}
 
-			select {
-			case _, _ = <-client.GoingClose:
+func (r *Radio) processClient(client *Socket.SocketClient, radioClient *RadioClient) {
+	for {
+		select {
+		case _, _ = <-client.GoingClose:
+			r.RemoveClient(client)
+			return
+		case chunk, ok := <-radioClient.sendChan:
+			if ok {
+				log.Println("send chan happened")
+				appendToPendings(chunk, radioClient.list)
+			} else {
+				log.Println("send chan miss-matched")
 				r.RemoveClient(client)
 				return
-			case chunk, ok := <-radioClient.sendChan:
-				if ok {
-					log.Println("send chan happened")
-					appendToPendings(chunk, radioClient.list)
-				} else {
-					log.Println("send chan miss-matched")
-					r.RemoveClient(client)
-					return
-				}
-			case chunk, ok := <-radioClient.writeChan:
-				if ok {
-					log.Println("write chan happened")
-					appendToPendings(chunk, radioClient.list)
-				} else {
-					log.Println("write chan miss-matched")
-					r.RemoveClient(client)
-					return
-				}
-			default:
-				time.Sleep(time.Millisecond * 300)
-				fetchAndSend(client, radioClient.list, r.file)
 			}
-
+		case chunk, ok := <-radioClient.writeChan:
+			if ok {
+				log.Println("write chan happened")
+				appendToPendings(chunk, radioClient.list)
+			} else {
+				log.Println("write chan miss-matched")
+				r.RemoveClient(client)
+				return
+			}
+		case <-time.After(time.Millisecond * 300):
+			fetchAndSend(client, radioClient.list, r.file)
+			//default:
+			//	fetchAndSend(client, radioClient.list, r.file)
 		}
-	}()
+
+	}
 }
 
 func (r *Radio) RemoveClient(client *Socket.SocketClient) {
@@ -188,14 +183,14 @@ func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 	if !ok {
 		return
 	}
-	go func() {
-		select {
-		case cli.sendChan <- RAMChunk{data}:
-		case <-time.After(time.Second * 10):
-			r.RemoveClient(client)
-			log.Println("sendChan failed in singleSend")
-		}
-	}()
+	//go func() {
+	select {
+	case cli.sendChan <- RAMChunk{data}:
+	case <-time.After(time.Second * 10):
+		r.RemoveClient(client)
+		log.Println("sendChan failed in singleSend")
+	}
+	//}()
 }
 
 func send_helper(

@@ -19,23 +19,15 @@ const (
 	SEND_INTERVAL             = 500        // check pending list every 800ms to send new items
 )
 
-// TODO: all need test
-
 func (r *RadioTaskList) Tasks() *[]RadioChunk {
-	r.locker.Lock()
-	defer r.locker.Unlock()
 	return &(r.tasks)
 }
 
 func (r *RadioTaskList) Length() int {
-	r.locker.Lock()
-	defer r.locker.Unlock()
 	return len(r.tasks)
 }
 
 func (r *RadioTaskList) Append(chunks []RadioChunk) {
-	r.locker.Lock()
-	defer r.locker.Unlock()
 	r.tasks = append(r.tasks, chunks...)
 }
 
@@ -44,24 +36,18 @@ func (r *RadioTaskList) PushBack(chunks []RadioChunk) {
 }
 
 func (r *RadioTaskList) PopBack() RadioChunk {
-	r.locker.Lock()
-	defer r.locker.Unlock()
 	var bottomItem = r.tasks[len(r.tasks)-1]
 	r.tasks = r.tasks[:len(r.tasks)-1]
 	return bottomItem
 }
 
 func (r *RadioTaskList) PopFront() RadioChunk {
-	r.locker.Lock()
-	defer r.locker.Unlock()
 	var item = r.tasks[0]
 	r.tasks = r.tasks[1:len(r.tasks)]
 	return item
 }
 
 func (r *RadioTaskList) PushFront(chunk RadioChunk) {
-	r.locker.Lock()
-	defer r.locker.Unlock()
 	r.tasks = append(r.tasks, chunk)
 	copy(r.tasks[1:], r.tasks[0:])
 	r.tasks[0] = chunk
@@ -101,6 +87,8 @@ func pushRamChunk(chunk RAMChunk, queue *RadioTaskList) {
 }
 
 func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
+	list.locker.Lock()
+	defer list.locker.Unlock()
 	log.Println("appended", chunk)
 	switch chunk.(type) {
 	case RAMChunk:
@@ -142,6 +130,8 @@ func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *BufferedFile.BufferedFile) {
 	//log.Println("fetchAndSend", list.Tasks())
 	//log.Println("tasks fetchAndSend", list.tasks, len(tasks))
+	list.locker.Lock()
+	defer list.locker.Unlock()
 	if list.Length() <= 0 {
 		return
 	}
@@ -160,10 +150,10 @@ func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *Buffer
 			return
 		}
 		log.Println("write to client", len(buf))
-		go client.WriteRaw(buf)
+		client.WriteRaw(buf)
 	case RAMChunk:
 		log.Println("write ram chunk to client", len(item.(RAMChunk).Data))
-		go client.WriteRaw(item.(RAMChunk).Data)
+		client.WriteRaw(item.(RAMChunk).Data)
 	}
 }
 

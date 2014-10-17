@@ -176,23 +176,28 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 	var length = int64(len(data))
 	var mark = atomic.LoadInt64(&f.waterMark)
 	var err error = nil
+	//log.Println(fileSize, mark, f.wholeSize, off, length)
 	if off+length > fileSize+mark {
 		return 0, errors.New("Cannot read so much")
 	}
 	// all in file
-	if off+length <= fileSize {
+	if off+length <= fileSize && fileSize != 0 {
+		//log.Println("all in file")
 		l, e := f.file.ReadAt(data, off)
 		return int64(l), e
 	}
 
 	// all in buffer
 	if off <= mark+fileSize {
-		num := copy(data, f.buffer)
+		//log.Println("all in buffer")
+		start := off - fileSize
+		num := copy(data, f.buffer[start:start+length])
 		return int64(num), nil
 	}
 
 	// half in buffer, and the other half in file
 	// read file first
+	//log.Println("half, half")
 	var file_buf = make([]byte, fileSize-off)
 	_, err = f.file.ReadAt(file_buf, off)
 	// copy bytes in buffer then
