@@ -86,7 +86,6 @@ func (m *Room) init() (err error) {
 			[]byte(m.Options.Password)...)
 		m.key = genSignedKey(source)
 		log.Println("key", m.key)
-		m.expiration = 48
 
 		addr, err = net.ResolveTCPAddr("tcp", ":0")
 		if err != nil {
