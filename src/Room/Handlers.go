@@ -235,6 +235,8 @@ func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
 		return
 	}
 
+	m.Options.EmptyClose = true
+
 	resp.Result = true
 	log.Println(req, resp)
 	sendToClient(resp, client)
