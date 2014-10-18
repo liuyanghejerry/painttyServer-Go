@@ -135,6 +135,7 @@ func (m *Room) init() (err error) {
 	m.router.Register("kick", m.handleKick)
 	m.router.Register("onlinelist", m.handleOnlineList)
 	m.router.Register("close", m.handleClose)
+	m.router.Register("checkout", m.handleCheckout)
 
 	return nil
 }
