@@ -37,6 +37,11 @@ type CloseRequest struct {
 	Key     string `json: "key"`
 }
 
+type CheckoutRequest struct {
+	Request string `json: "request"`
+	Key     string `json: "key"`
+}
+
 type OnlineListRequest struct {
 	Request  string `json: "request"`
 	ClientId string `json: "clientid"`

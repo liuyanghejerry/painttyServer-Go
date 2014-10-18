@@ -38,6 +38,14 @@ func init() {
 	} else {
 		confMap["announcement"] = announcement
 	}
+
+	expiration, ok := confMap["expiration"].(int)
+	if !ok {
+		log.Println("Expiration not set. Using 48 as default expiration...")
+		confMap["expiration"] = 48
+	} else {
+		confMap["expiration"] = expiration
+	}
 }
 
 func GetConfig() map[interface{}]interface{} {

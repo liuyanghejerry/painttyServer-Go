@@ -41,6 +41,7 @@ type Room struct {
 	archiveSign string
 	port        uint16
 	Options     RoomOption
+	lastCheck   time.Time
 	locker      *sync.Mutex
 }
 
@@ -185,8 +186,26 @@ func (m *Room) processEmptyClose() {
 	}
 }
 
+func (m *Room) processExpire() {
+	for {
+		select {
+		case _, _ = <-m.GoingClose:
+			return
+		case <-time.After(time.Hour * time.Duration(m.expiration/2)):
+			if time.Since(m.lastCheck) > time.Hour*time.Duration(m.expiration) {
+				if len(m.clients) <= 0 {
+					m.Close()
+				} else {
+					m.Options.EmptyClose = true
+				}
+			}
+		}
+	}
+}
+
 func (m *Room) Run() error {
 	log.Println("Room ", m.Options.Name, " is running")
+	go m.processExpire()
 	for {
 		select {
 		case _, _ = <-m.GoingClose:
@@ -293,8 +312,10 @@ func (m *Room) kickClient(target *Socket.SocketClient) {
 
 func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
-		Options: opt,
-		locker:  &sync.Mutex{},
+		Options:    opt,
+		expiration: config["expiration"].(int),
+		lastCheck:  time.Now(),
+		locker:     &sync.Mutex{},
 	}
 	if err := room.init(); err != nil {
 		return &Room{}, err
@@ -310,6 +331,7 @@ func RecoverRoom(info *RoomRuntimeInfo) (*Room, error) {
 		archiveSign: info.ArchiveSign,
 		key:         info.Key,
 		Options:     info.Options,
+		lastCheck:   time.Now(),
 		locker:      &sync.Mutex{},
 	}
 	if err := room.init(); err != nil {

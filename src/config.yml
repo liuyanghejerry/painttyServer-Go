@@ -2,4 +2,5 @@
    salt: "salt.key"
    manager_port: 18573
    data_dir: "data"
+   expiration: 12
    announcement: "大家好，这里是茶绘君的测试版服务器。如果大家发现BUG，请尽快与我们联系哦。<br>"

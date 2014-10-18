@@ -54,6 +54,13 @@ type CloseResponse struct {
 	Result   bool   `json:"result"`
 }
 
+type CheckoutResponse struct {
+	Response string `json:"response"`
+	Result   bool   `json:"result"`
+	Cycle    int64  `json:"cycle"`
+	Errcode  int64  `json:"errcode"`
+}
+
 type OnlineListItem struct {
 	Name     string `json:"name"`
 	ClientId string `json:"clientid"`

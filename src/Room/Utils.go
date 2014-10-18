@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	xxhash "github.com/OneOfOne/xxhash/native"
 	"github.com/dustin/randbo"
 	"io"
@@ -88,6 +89,24 @@ func (m *Room) sendWelcomeMsg(client *Socket.SocketClient) {
 	if len(msg) <= 0 {
 		return
 	}
+	resp := WelcomeMsgType{
+		Content: msg + "\n",
+	}
+	var raw, err = json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println(resp, raw, string(raw))
+	_, err = client.SendMessagePack(raw)
+	if err != nil {
+		client.Close()
+	}
+}
+
+func (m *Room) sendExpirationMsg(client *Socket.SocketClient) {
+	leftTime := time.Hour*time.Duration(m.expiration) - time.Since(m.lastCheck)
+	msg := fmt.Sprintf("这间房间还剩下约%d小时", int64(leftTime/time.Hour))
 	resp := WelcomeMsgType{
 		Content: msg + "\n",
 	}

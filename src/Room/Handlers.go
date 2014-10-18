@@ -5,6 +5,7 @@ import (
 	"Socket"
 	"encoding/json"
 	"log"
+	"time"
 )
 
 func sendToClient(resp interface{}, client *Socket.SocketClient) {
@@ -71,6 +72,7 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 		user.clientId = clientId
 		user.nickName = req.Name
 		m.sendAnnouncement(client)
+		m.sendExpirationMsg(client)
 		m.sendWelcomeMsg(client)
 	} else {
 		panic("handleJoin found unclean client")
@@ -179,6 +181,40 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 	log.Println(req, resp)
 	sendToClient(resp, client)
 	m.broadcastCommand(action)
+}
+
+func (m *Room) handleCheckout(data []byte, client *Socket.SocketClient) {
+	if !m.hasUser(client) {
+		return
+	}
+	req := &CheckoutRequest{}
+	json.Unmarshal(data, &req)
+
+	var resp = CheckoutResponse{
+		Response: "checkout",
+		Result:   false,
+		Errcode:  ErrorCode.CHECKOUT_UNKNOWN,
+	}
+
+	log.Println("request key", req.Key, "room key", m.Key())
+
+	if req.Key != m.Key() {
+		resp.Errcode = ErrorCode.CHECKOUT_KEY_INCORRECT
+		sendToClient(resp, client)
+		return
+	}
+
+	if m.Options.EmptyClose {
+		resp.Errcode = ErrorCode.CHECKOUT_TIMEOUT
+		sendToClient(resp, client)
+		return
+	}
+
+	m.lastCheck = time.Now()
+
+	resp.Result = true
+	log.Println(req, resp)
+	sendToClient(resp, client)
 }
 
 func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
