@@ -54,7 +54,7 @@ func (m *Room) Close() {
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	m.radio.Close()
-	m.removeAllClient()
+	m.removeAllClient_internal()
 	m.ln.Close()
 }
 
@@ -261,11 +261,17 @@ func (m *Room) removeClient(client *Socket.SocketClient) {
 }
 
 func (m *Room) removeAllClient() {
-	log.Println("would like to remove client from room")
+	log.Println("would like to remove all clients from room")
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	log.Println("client removed from room")
+}
+
+func (m *Room) removeAllClient_internal() {
+	log.Println("would like to remove all clients from room")
+	m.clients = make(map[*Socket.SocketClient]*RoomUser)
+	log.Println("all clients removed from room")
 }
 
 func (m *Room) kickClient(target *Socket.SocketClient) {
