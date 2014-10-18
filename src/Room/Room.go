@@ -227,6 +227,9 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				case Socket.COMMAND:
 					m.router.OnMessage(pkg.Unpacked, client)
 				case Socket.DATA:
+					if !m.hasUser(client) {
+						return
+					}
 					select {
 					case m.radio.WriteChan <- Radio.RadioSendPart{
 						Data: pkg.Repacked,
@@ -235,6 +238,9 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						log.Println("WriteChan failed in processClient")
 					}
 				case Socket.MESSAGE:
+					if !m.hasUser(client) {
+						return
+					}
 					select {
 					case m.radio.SendChan <- Radio.RadioSendPart{
 						Data: pkg.Repacked,

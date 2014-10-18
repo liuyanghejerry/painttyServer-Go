@@ -70,6 +70,8 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 	if user, ok := m.clients[client]; ok {
 		user.clientId = clientId
 		user.nickName = req.Name
+		m.sendAnnouncement(client)
+		m.sendWelcomeMsg(client)
 	} else {
 		panic("handleJoin found unclean client")
 	}

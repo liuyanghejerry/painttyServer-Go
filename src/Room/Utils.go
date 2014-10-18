@@ -9,6 +9,7 @@ import (
 	xxhash "github.com/OneOfOne/xxhash/native"
 	"github.com/dustin/randbo"
 	"io"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +68,38 @@ func (m *Room) broadcastCommand(resp interface{}) {
 				cli.Close()
 			}
 		}
+	}
+}
+
+func (m *Room) sendAnnouncement(client *Socket.SocketClient) {
+	msg := config["announcement"].(string)
+	if len(msg) <= 0 {
+		return
+	}
+	resp := NotifyAction{
+		Action:  "notify",
+		Content: msg + "\n",
+	}
+	sendToClient(resp, client)
+}
+
+func (m *Room) sendWelcomeMsg(client *Socket.SocketClient) {
+	msg := m.Options.WelcomeMsg
+	if len(msg) <= 0 {
+		return
+	}
+	resp := WelcomeMsgType{
+		Content: msg + "\n",
+	}
+	var raw, err = json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println(resp, raw, string(raw))
+	_, err = client.SendMessagePack(raw)
+	if err != nil {
+		client.Close()
 	}
 }
 

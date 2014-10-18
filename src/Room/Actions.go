@@ -17,3 +17,12 @@ type CloseAction struct {
 type KickAction struct {
 	Action string `json:"action"`
 }
+
+type NotifyAction struct {
+	Action  string `json:"action"`
+	Content string `json:"content"`
+}
+
+type WelcomeMsgType struct {
+	Content string `json:"content"`
+}

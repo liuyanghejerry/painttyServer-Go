@@ -30,6 +30,14 @@ func init() {
 		saltHash[i] = v
 	}
 	confMap["globalSaltHash"] = saltHash
+
+	announcement, ok := confMap["announcement"].(string)
+	if !ok {
+		log.Println("Announcement not set. Using empty announcement...")
+		confMap["announcement"] = ""
+	} else {
+		confMap["announcement"] = announcement
+	}
 }
 
 func GetConfig() map[interface{}]interface{} {
