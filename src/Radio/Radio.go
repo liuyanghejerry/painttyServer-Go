@@ -69,6 +69,13 @@ func (r *Radio) Close() {
 	close(r.WriteChan)
 }
 
+func (r *Radio) Remove() {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	r.file.Close()
+	defer r.file.Remove()
+}
+
 func (r *Radio) Signature() string {
 	return r.signature
 }
@@ -154,7 +161,7 @@ func (r *Radio) processClient(client *Socket.SocketClient, radioClient *RadioCli
 				r.RemoveClient(client)
 				return
 			}
-		case <-time.After(time.Millisecond * 300):
+		case <-time.After(time.Millisecond * 100):
 			fetchAndSend(client, radioClient.list, r.file)
 			//default:
 			//	fetchAndSend(client, radioClient.list, r.file)
@@ -168,6 +175,13 @@ func (r *Radio) RemoveClient(client *Socket.SocketClient) {
 	defer r.locker.Unlock()
 	log.Println("remove client from radio")
 	delete(r.clients, client)
+}
+
+func (r *Radio) RemoveAllClients() {
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	log.Println("remove client from radio")
+	r.clients = make(map[*Socket.SocketClient]*RadioClient)
 }
 
 func (r *Radio) FileSize() int64 {

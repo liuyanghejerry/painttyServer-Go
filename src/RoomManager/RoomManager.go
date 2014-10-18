@@ -6,6 +6,7 @@ import (
 	"Router"
 	"Socket"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 	"log"
 	"net"
@@ -77,18 +78,24 @@ func (m *RoomManager) recovery() error {
 		m.roomsLocker.Lock()
 		m.rooms[room.Options.Name] = room
 		m.roomsLocker.Unlock()
-		room.Run()
-		go func() {
-			_, _ = <-room.GoingClose
-			m.roomsLocker.Lock()
-			delete(m.rooms, room.Options.Name)
-			m.roomsLocker.Unlock()
-			return
-		}()
+		go func(room *Room.Room) {
+			roomName := room.Options.Name
+			room.Run()
+			m.waitRoomClosed(roomName)
+		}(room)
+
 	}
 	iter.Release()
 	err = iter.Error()
 	return err
+}
+
+func (m *RoomManager) waitRoomClosed(roomName string) {
+	log.Println(roomName, "is closed.")
+	m.roomsLocker.Lock()
+	delete(m.rooms, roomName)
+	m.roomsLocker.Unlock()
+	m.db.Delete([]byte("room-"+roomName), &opt.WriteOptions{false})
 }
 
 func (m *RoomManager) Close() {

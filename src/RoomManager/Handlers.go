@@ -11,6 +11,9 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	json.Unmarshal(data, &req)
 	log.Println(req.Request)
 	roomlist := make([]RoomPublicInfo, 0, 100)
+	m.roomsLocker.Lock()
+	defer m.roomsLocker.Unlock()
+	log.Println("room count", len(m.rooms))
 	for _, v := range m.rooms {
 		room := RoomPublicInfo{
 			Name:          v.Options.Name,
@@ -35,7 +38,8 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	_, err = client.SendManagerPack(raw)
 	if err != nil {
 		//panic(err)
-		client.GoingClose <- true
+		//client.GoingClose <- true
+		client.Close()
 	}
 }
 
@@ -62,19 +66,17 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	m.roomsLocker.Lock()
 	m.rooms[room.Options.Name] = room
 	m.roomsLocker.Unlock()
-	room.Run()
+	go func(room *Room.Room) {
+		roomName := room.Options.Name
+		room.Run()
+		m.waitRoomClosed(roomName)
+	}(room)
+
 	// insert to db
 	info_to_insert := room.Dump()
 	write_opt := &opt.WriteOptions{false}
 	log.Println(room.Options.Name, string(info_to_insert))
 	m.db.Put([]byte("room-"+room.Options.Name), info_to_insert, write_opt)
-	go func() {
-		_, _ = <-room.GoingClose
-		m.roomsLocker.Lock()
-		delete(m.rooms, room.Options.Name)
-		m.roomsLocker.Unlock()
-		m.db.Delete([]byte("room-"+room.Options.Name), write_opt)
-	}()
 
 	var resp = NewRoomResponse{
 		"newroom",

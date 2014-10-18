@@ -61,9 +61,7 @@ func (f *BufferedFile) startWriteTimer() {
 			select {
 			case _, _ = <-f.goingClose:
 				return
-			default:
-				time.Sleep(f.option.WriteCycle)
-				//log.Println("auto sync")
+			case <-time.After(f.option.WriteCycle):
 				if err := f.Sync(); err != nil {
 					panic(err)
 				}
@@ -113,12 +111,12 @@ func (f *BufferedFile) innerSync() error {
 }
 
 func (f *BufferedFile) Close() error {
+	close(f.goingClose)
 	err := f.Sync()
 	if err != nil {
 		return err
 	}
 	err = f.file.Close()
-	close(f.goingClose)
 	return err
 }
 
@@ -134,6 +132,10 @@ func (f *BufferedFile) Clear() error {
 		return err
 	}
 	return nil
+}
+
+func (f *BufferedFile) Remove() {
+	os.Remove(f.option.FileName)
 }
 
 func (f *BufferedFile) Write(data []byte) (int64, error) {

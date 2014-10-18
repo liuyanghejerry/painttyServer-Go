@@ -51,11 +51,17 @@ func init() {
 }
 
 func (m *Room) Close() {
+	log.Println("would like to close Room")
 	m.locker.Lock()
 	defer m.locker.Unlock()
+	close(m.GoingClose)
+	log.Println("room channel closed")
 	m.radio.Close()
-	m.removeAllClient_internal()
+	log.Println("room radio closed")
+	m.radio.Remove()
+	log.Println("room radio removed")
 	m.ln.Close()
+	log.Println("room connection closed")
 }
 
 func (m *Room) init() (err error) {
@@ -181,26 +187,24 @@ func (m *Room) processEmptyClose() {
 
 func (m *Room) Run() error {
 	log.Println("Room ", m.Options.Name, " is running")
-	go func() {
-		for {
-			select {
-			case _, _ = <-m.GoingClose:
-				return
-			default:
-				conn, err := m.ln.AcceptTCP()
-				if err != nil {
-					// TODO: handle error
-					//panic(err)
-					continue
-				}
-				var client = Socket.MakeSocketClient(conn)
-				m.locker.Lock()
-				m.clients[client] = &RoomUser{}
-				m.locker.Unlock()
-				m.processClient(client)
+	for {
+		select {
+		case _, _ = <-m.GoingClose:
+			return nil
+		default:
+			conn, err := m.ln.AcceptTCP()
+			if err != nil {
+				// TODO: handle error
+				//panic(err)
+				continue
 			}
+			var client = Socket.MakeSocketClient(conn)
+			m.locker.Lock()
+			m.clients[client] = &RoomUser{}
+			m.locker.Unlock()
+			m.processClient(client)
 		}
-	}()
+	}
 	return nil
 }
 
@@ -215,6 +219,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 			case pkg, ok := <-client.PackageChan:
 				if !ok {
 					m.removeClient(client)
+					m.processEmptyClose()
 					return
 				}
 				//go func() {
@@ -257,6 +262,7 @@ func (m *Room) removeClient(client *Socket.SocketClient) {
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	delete(m.clients, client)
+	m.radio.RemoveClient(client)
 	log.Println("client removed from room")
 }
 
@@ -264,13 +270,13 @@ func (m *Room) removeAllClient() {
 	log.Println("would like to remove all clients from room")
 	m.locker.Lock()
 	defer m.locker.Unlock()
-	m.clients = make(map[*Socket.SocketClient]*RoomUser)
-	log.Println("client removed from room")
+	m.removeAllClient_internal()
 }
 
 func (m *Room) removeAllClient_internal() {
 	log.Println("would like to remove all clients from room")
 	m.clients = make(map[*Socket.SocketClient]*RoomUser)
+	m.radio.RemoveAllClients()
 	log.Println("all clients removed from room")
 }
 
