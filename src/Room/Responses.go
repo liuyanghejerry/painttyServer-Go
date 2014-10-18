@@ -49,6 +49,11 @@ type KickResponse struct {
 	Result   bool   `json:"result"`
 }
 
+type CloseResponse struct {
+	Response string `json:"response"`
+	Result   bool   `json:"result"`
+}
+
 type OnlineListItem struct {
 	Name     string `json:"name"`
 	ClientId string `json:"clientid"`

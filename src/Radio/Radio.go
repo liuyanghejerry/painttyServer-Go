@@ -275,7 +275,7 @@ func (r *Radio) run() {
 	}
 }
 
-func MakeRadio(fileName string) (*Radio, error) {
+func MakeRadio(fileName, sign string) (*Radio, error) {
 	var file, err = BufferedFile.MakeBufferedFile(
 		BufferedFile.BufferedFileOption{
 			fileName,
@@ -293,7 +293,7 @@ func MakeRadio(fileName string) (*Radio, error) {
 		SendChan:       make(chan RadioSendPart),
 		WriteChan:      make(chan RadioSendPart),
 		locker:         sync.Mutex{},
-		signature:      fileName, // TODO: recovery
+		signature:      sign, // TODO: recovery
 	}
 	go radio.run()
 	return radio, nil

@@ -5,6 +5,15 @@ type ClearAllAction struct {
 	Signature string `json:"signature"`
 }
 
+type CloseActionInfo struct {
+	Reason int64 `json:"reason"`
+}
+
+type CloseAction struct {
+	Action string          `json:"action"`
+	Info   CloseActionInfo `json:"info"`
+}
+
 type KickAction struct {
 	Action string `json:"action"`
 }

@@ -101,7 +101,7 @@ func (m *Room) init() (err error) {
 		panic(err)
 	}
 
-	radio, err := Radio.MakeRadio(data_path)
+	radio, err := Radio.MakeRadio(data_path, m.archiveSign)
 	m.radio = radio
 
 	m.ln, err = net.ListenTCP("tcp", addr)
@@ -127,6 +127,7 @@ func (m *Room) init() (err error) {
 	m.router.Register("clearall", m.handleClearAll)
 	m.router.Register("kick", m.handleKick)
 	m.router.Register("onlinelist", m.handleOnlineList)
+	m.router.Register("close", m.handleClose)
 
 	return nil
 }
@@ -168,6 +169,14 @@ func (m *Room) hasUser(u *Socket.SocketClient) bool {
 		return true
 	}
 	return false
+}
+
+func (m *Room) processEmptyClose() {
+	m.locker.Lock()
+	defer m.locker.Unlock()
+	if m.CurrentLoad() <= 0 && m.Options.EmptyClose {
+		m.Close()
+	}
 }
 
 func (m *Room) Run() error {
@@ -232,6 +241,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				//}()
 			case _, _ = <-client.GoingClose:
 				m.removeClient(client)
+				m.processEmptyClose()
 				return
 			case <-time.After(time.Second * 10):
 				log.Println("processClient blocked detected")

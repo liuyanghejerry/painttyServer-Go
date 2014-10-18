@@ -216,6 +216,38 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 	sendToClient(resp, client)
 }
 
+func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
+	if !m.hasUser(client) {
+		return
+	}
+	req := &CloseRequest{}
+	json.Unmarshal(data, &req)
+
+	var resp = CloseResponse{
+		Response: "close",
+		Result:   false,
+	}
+
+	log.Println("request key", req.Key, "room key", m.Key())
+
+	if req.Key != m.Key() {
+		sendToClient(resp, client)
+		return
+	}
+
+	resp.Result = true
+	log.Println(req, resp)
+	sendToClient(resp, client)
+
+	var action = CloseAction{
+		Action: "close",
+		Info: CloseActionInfo{
+			Reason: 501,
+		},
+	}
+	m.broadcastCommand(action)
+}
+
 func (m *Room) handleOnlineList(data []byte, client *Socket.SocketClient) {
 	if !m.hasUser(client) {
 		return

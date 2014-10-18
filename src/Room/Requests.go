@@ -32,6 +32,11 @@ type KickRequest struct {
 	ClientId string `json: "clientid"`
 }
 
+type CloseRequest struct {
+	Request string `json: "request"`
+	Key     string `json: "key"`
+}
+
 type OnlineListRequest struct {
 	Request  string `json: "request"`
 	ClientId string `json: "clientid"`
