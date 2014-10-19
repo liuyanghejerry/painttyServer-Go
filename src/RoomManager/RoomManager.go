@@ -93,8 +93,8 @@ func (m *RoomManager) recovery() error {
 func (m *RoomManager) waitRoomClosed(roomName string) {
 	log.Println(roomName, "is closed.")
 	m.roomsLocker.Lock()
+	defer m.roomsLocker.Unlock()
 	delete(m.rooms, roomName)
-	m.roomsLocker.Unlock()
 	m.db.Delete([]byte("room-"+roomName), &opt.WriteOptions{false})
 }
 

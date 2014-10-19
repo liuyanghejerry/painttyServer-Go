@@ -59,6 +59,25 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 		WelcomeMsg: req.Info.WelcomeMsg,
 		Password:   req.Info.Password,
 	}
+
+	if code := m.limitRoomOption(&options); code != 0 {
+		var resp = NewRoomResponse{
+			Response: "newroom",
+			Result:   false,
+			ErrCode:  code,
+		}
+
+		raw, err := json.Marshal(resp)
+		if err != nil {
+			panic(err)
+		}
+		_, err = client.SendManagerPack(raw)
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
 	room, err := Room.ServeRoom(options)
 	if err != nil {
 		panic(err)

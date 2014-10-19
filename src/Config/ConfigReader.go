@@ -46,6 +46,14 @@ func init() {
 	} else {
 		confMap["expiration"] = expiration
 	}
+
+	maxLoad, ok := confMap["maxLoad"].(int)
+	if !ok {
+		log.Println("maxLoad not set. Using 8 as default expiration...")
+		confMap["maxLoad"] = 48
+	} else {
+		confMap["maxLoad"] = maxLoad
+	}
 }
 
 func GetConfig() map[interface{}]interface{} {
