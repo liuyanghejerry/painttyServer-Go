@@ -180,7 +180,7 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 
 	if resp.Result {
 		log.Println("startPos", startPos, "dataLength", dataLength)
-		go m.radio.AddClient(client, startPos, dataLength)
+		m.radio.AddClient(client, startPos, dataLength)
 	}
 }
 
