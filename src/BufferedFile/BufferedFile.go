@@ -190,7 +190,7 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 	}
 
 	// all in buffer
-	if off <= mark+fileSize {
+	if off > fileSize {
 		//log.Println("all in buffer")
 		start := off - fileSize
 		num := copy(data, f.buffer[start:start+length])
