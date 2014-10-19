@@ -106,7 +106,7 @@ func writeLoop(client *SocketClient, con *net.TCPConn) {
 				client.Close()
 				return
 			}
-			client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
+			//client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
 			_, err := client.con.Write(data)
 			if err != nil {
 				log.Println("cannot make write on client")
@@ -114,7 +114,7 @@ func writeLoop(client *SocketClient, con *net.TCPConn) {
 				return
 			}
 			log.Println("wrote succeed")
-		case <-time.After(20 * time.Second):
+		case <-time.After(60 * time.Second):
 			log.Println("client write timeout")
 			client.Close()
 		}
@@ -129,7 +129,7 @@ func readLoop(client *SocketClient, con *net.TCPConn, reader *SocketReader) {
 		default:
 			var buffer []byte = make([]byte, 128)
 			outBytes, err := con.Read(buffer)
-			con.SetReadDeadline(time.Now().Add(20 * time.Second))
+			//con.SetReadDeadline(time.Now().Add(20 * time.Second))
 			if err != nil {
 				client.Close()
 				return
@@ -161,7 +161,7 @@ func pubLoop(client *SocketClient, reader *SocketReader) {
 }
 
 func MakeSocketClient(con *net.TCPConn) *SocketClient {
-	con.SetReadDeadline(time.Now().Add(20 * time.Second))
+	//con.SetReadDeadline(time.Now().Add(20 * time.Second))
 	client := SocketClient{
 		make(chan Package),
 		con,

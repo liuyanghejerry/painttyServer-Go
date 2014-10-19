@@ -123,7 +123,7 @@ func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 
 	if list.Length() >= MAX_CHUNKS_IN_QUEUE*2 {
 		// TODO: add another function to re-split chunks in queue
-		//logger.warn('There\'re ', list.length, 'chunks in a single queue!')
+		log.Println("There're ", list.Length(), "chunks in a single queue!")
 	}
 }
 
