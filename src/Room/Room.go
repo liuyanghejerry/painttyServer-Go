@@ -191,7 +191,7 @@ func (m *Room) processExpire() {
 		select {
 		case _, _ = <-m.GoingClose:
 			return
-		case <-time.After(time.Hour * time.Duration(m.expiration/2)):
+		case <-time.After(time.Hour):
 			if time.Since(m.lastCheck) > time.Hour*time.Duration(m.expiration) {
 				if len(m.clients) <= 0 {
 					m.Close()
