@@ -163,11 +163,11 @@ func pubLoop(client *SocketClient, reader *SocketReader) {
 func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	//con.SetReadDeadline(time.Now().Add(20 * time.Second))
 	client := SocketClient{
-		make(chan Package),
-		con,
-		make(chan bool),
-		make(chan []byte),
-		sync.Once{},
+		PackageChan: make(chan Package),
+		con:         con,
+		GoingClose:  make(chan bool),
+		rawChan:     make(chan []byte, 1024*1024), // 1MB buffer for each client
+		closed:      sync.Once{},
 	}
 	reader := NewSocketReader()
 
