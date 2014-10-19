@@ -16,7 +16,6 @@ import (
 )
 
 type RoomManager struct {
-	clients     []*Socket.SocketClient
 	ln          *net.TCPListener
 	goingClose  chan bool
 	router      *Router.Router
@@ -26,7 +25,6 @@ type RoomManager struct {
 }
 
 func (m *RoomManager) init() error {
-	m.clients = make([]*Socket.SocketClient, 0, 100)
 	m.goingClose = make(chan bool)
 	m.rooms = make(map[string]*Room.Room)
 	m.router = Router.MakeRouter()
@@ -78,11 +76,11 @@ func (m *RoomManager) recovery() error {
 		m.roomsLocker.Lock()
 		m.rooms[room.Options.Name] = room
 		m.roomsLocker.Unlock()
-		go func(room *Room.Room) {
+		go func(room *Room.Room, m *RoomManager) {
 			roomName := room.Options.Name
 			room.Run()
 			m.waitRoomClosed(roomName)
-		}(room)
+		}(room, m)
 
 	}
 	iter.Release()
@@ -103,9 +101,6 @@ func (m *RoomManager) Close() {
 	defer m.roomsLocker.Unlock()
 	close(m.goingClose)
 	m.db.Close()
-	for _, room := range m.clients {
-		room.Close()
-	}
 	m.ln.Close()
 }
 
@@ -129,7 +124,6 @@ func (m *RoomManager) Run() (err error) {
 					continue
 				}
 				var client = Socket.MakeSocketClient(conn)
-				m.clients = append(m.clients, client)
 				m.processClient(client)
 			}
 

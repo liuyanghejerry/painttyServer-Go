@@ -37,8 +37,6 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	}
 	_, err = client.SendManagerPack(raw)
 	if err != nil {
-		//panic(err)
-		//client.GoingClose <- true
 		client.Close()
 	}
 }
@@ -85,11 +83,11 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	m.roomsLocker.Lock()
 	m.rooms[room.Options.Name] = room
 	m.roomsLocker.Unlock()
-	go func(room *Room.Room) {
+	go func(room *Room.Room, m *RoomManager) {
 		roomName := room.Options.Name
 		room.Run()
 		m.waitRoomClosed(roomName)
-	}(room)
+	}(room, m)
 
 	// insert to db
 	info_to_insert := room.Dump()
