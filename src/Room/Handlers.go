@@ -156,14 +156,13 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 
 	var startPos = req.Start
 	var realLength = m.radio.FileSize()
-	var dataLength = req.DataLength
+	var dataLength = realLength - startPos
 
-	if startPos > realLength {
-		startPos = realLength
-		dataLength = 0
+	if req.DataLength != 0 {
+		dataLength = req.DataLength
 	}
 
-	if startPos+dataLength >= realLength {
+	if startPos+datalength <= realLength {
 		dataLength = realLength - startPos
 	}
 
