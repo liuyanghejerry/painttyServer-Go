@@ -162,7 +162,7 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 		dataLength = req.DataLength
 	}
 
-	if startPos+datalength <= realLength {
+	if startPos+dataLength <= realLength {
 		dataLength = realLength - startPos
 	}
 
