@@ -81,7 +81,7 @@ func AssamblePack(header PackHeader, data []byte) []byte {
 	if err != nil {
 		return make([]byte, 0)
 	}
-	return result
+	return protocolPack(result)
 }
 
 func (c *SocketClient) Close() {

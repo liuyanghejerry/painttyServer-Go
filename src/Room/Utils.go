@@ -10,7 +10,7 @@ import (
 	xxhash "github.com/OneOfOne/xxhash/native"
 	"github.com/dustin/randbo"
 	"io"
-	"log"
+	//"log"
 	"strconv"
 	"strings"
 	"time"
@@ -81,7 +81,7 @@ func (m *Room) sendAnnouncement(client *Socket.SocketClient) {
 		Action:  "notify",
 		Content: msg + "\n",
 	}
-	sendToClient(resp, client)
+	directSendCommand(resp, client)
 }
 
 func (m *Room) sendWelcomeMsg(client *Socket.SocketClient) {
@@ -92,16 +92,7 @@ func (m *Room) sendWelcomeMsg(client *Socket.SocketClient) {
 	resp := WelcomeMsgType{
 		Content: msg + "\n",
 	}
-	var raw, err = json.Marshal(resp)
-	if err != nil {
-		panic(err)
-	}
-
-	log.Println(resp, raw, string(raw))
-	_, err = client.SendMessagePack(raw)
-	if err != nil {
-		client.Close()
-	}
+	directSendMessage(resp, client)
 }
 
 func (m *Room) sendExpirationMsg(client *Socket.SocketClient) {
@@ -110,16 +101,7 @@ func (m *Room) sendExpirationMsg(client *Socket.SocketClient) {
 	resp := WelcomeMsgType{
 		Content: msg + "\n",
 	}
-	var raw, err = json.Marshal(resp)
-	if err != nil {
-		panic(err)
-	}
-
-	log.Println(resp, raw, string(raw))
-	_, err = client.SendMessagePack(raw)
-	if err != nil {
-		client.Close()
-	}
+	directSendMessage(resp, client)
 }
 
 func genSignedKey(source []byte) string {

@@ -2,18 +2,51 @@ package Room
 
 import (
 	"ErrorCode"
+	"Radio"
 	"Socket"
 	"encoding/json"
 	"log"
 	"time"
 )
 
-func sendToClient(resp interface{}, client *Socket.SocketClient) {
+func (m *Room) sendCommandTo(resp interface{}, client *Socket.SocketClient) {
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+
+	m.sendTo(raw, Socket.PackHeader{
+		true,
+		Socket.COMMAND,
+	}, client)
+}
+
+func (m *Room) sendTo(data []byte, header Socket.PackHeader, client *Socket.SocketClient) {
+	raw := Socket.AssamblePack(header, data)
+
+	m.radio.SingleSendChan <- Radio.RadioSingleSendPart{
+		Data:   raw,
+		Client: client,
+	}
+}
+
+func directSendCommand(resp interface{}, client *Socket.SocketClient) {
 	var raw, err = json.Marshal(resp)
 	if err != nil {
 		panic(err)
 	}
 	_, err = client.SendCommandPack(raw)
+	if err != nil {
+		client.Close()
+	}
+}
+
+func directSendMessage(resp interface{}, client *Socket.SocketClient) {
+	var raw, err = json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+	_, err = client.SendMessagePack(raw)
 	if err != nil {
 		client.Close()
 	}
@@ -32,19 +65,19 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 
 	if req.Password != m.Options.Password {
 		resp.ErrCode = ErrorCode.LOGIN_PWD_INCORRECT
-		sendToClient(resp, client)
+		directSendCommand(resp, client)
 		return
 	}
 
 	if m.CurrentLoad() > m.Options.MaxLoad {
 		resp.ErrCode = ErrorCode.LOGIN_ROOM_IS_FULL
-		sendToClient(resp, client)
+		directSendCommand(resp, client)
 		return
 	}
 
 	if nameLen := len(req.Name); nameLen > 32 || nameLen <= 0 {
 		resp.ErrCode = ErrorCode.LOGIN_INVALID_NAME
-		sendToClient(resp, client)
+		directSendCommand(resp, client)
 		return
 	}
 
@@ -64,7 +97,7 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 		},
 		0,
 	}
-	sendToClient(resp, client)
+	directSendCommand(resp, client)
 
 	m.locker.Lock()
 	defer m.locker.Unlock()
@@ -87,7 +120,7 @@ func (m *Room) handleHeartbeat(data []byte, client *Socket.SocketClient) {
 		Timestamp: req.Timestamp,
 	}
 
-	sendToClient(resp, client)
+	m.sendCommandTo(resp, client)
 }
 
 func (m *Room) handleArchiveSign(data []byte, client *Socket.SocketClient) {
@@ -104,7 +137,7 @@ func (m *Room) handleArchiveSign(data []byte, client *Socket.SocketClient) {
 		Errcode:   0,
 	}
 
-	sendToClient(resp, client)
+	directSendCommand(resp, client)
 	log.Println(req, resp)
 }
 
@@ -143,7 +176,7 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 	}
 
 	log.Println(req, resp)
-	sendToClient(resp, client)
+	directSendCommand(resp, client)
 
 	if resp.Result {
 		log.Println("startPos", startPos, "dataLength", dataLength)
@@ -166,7 +199,7 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 	log.Println("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
-		sendToClient(resp, client)
+		m.sendCommandTo(resp, client)
 		return
 	}
 
@@ -179,7 +212,7 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 
 	resp.Result = true
 	log.Println(req, resp)
-	sendToClient(resp, client)
+	m.sendCommandTo(resp, client)
 	m.broadcastCommand(action)
 }
 
@@ -200,13 +233,13 @@ func (m *Room) handleCheckout(data []byte, client *Socket.SocketClient) {
 
 	if req.Key != m.Key() {
 		resp.Errcode = ErrorCode.CHECKOUT_KEY_INCORRECT
-		sendToClient(resp, client)
+		m.sendCommandTo(resp, client)
 		return
 	}
 
 	if m.Options.EmptyClose {
 		resp.Errcode = ErrorCode.CHECKOUT_TIMEOUT
-		sendToClient(resp, client)
+		m.sendCommandTo(resp, client)
 		return
 	}
 
@@ -214,7 +247,7 @@ func (m *Room) handleCheckout(data []byte, client *Socket.SocketClient) {
 
 	resp.Result = true
 	log.Println(req, resp)
-	sendToClient(resp, client)
+	m.sendCommandTo(resp, client)
 }
 
 func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
@@ -232,7 +265,7 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 	log.Println("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
-		sendToClient(resp, client)
+		m.sendCommandTo(resp, client)
 		return
 	}
 
@@ -243,7 +276,7 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 	target := req.ClientId
 
 	if cli := m.findClientById(target); cli != nil {
-		sendToClient(action, cli)
+		m.sendCommandTo(action, cli)
 		m.kickClient(cli)
 	} else {
 		log.Println("Cannot find target client to kick:", target)
@@ -251,7 +284,7 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 
 	resp.Result = true
 	log.Println(req, resp)
-	sendToClient(resp, client)
+	m.sendCommandTo(resp, client)
 }
 
 func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
@@ -269,7 +302,7 @@ func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
 	log.Println("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
-		sendToClient(resp, client)
+		m.sendCommandTo(resp, client)
 		return
 	}
 
@@ -277,7 +310,7 @@ func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
 
 	resp.Result = true
 	log.Println(req, resp)
-	sendToClient(resp, client)
+	m.sendCommandTo(resp, client)
 
 	var action = CloseAction{
 		Action: "close",
@@ -301,5 +334,5 @@ func (m *Room) handleOnlineList(data []byte, client *Socket.SocketClient) {
 		OnlineList: m.OnlineList(),
 	}
 	log.Println(req, resp)
-	sendToClient(resp, client)
+	m.sendCommandTo(resp, client)
 }
