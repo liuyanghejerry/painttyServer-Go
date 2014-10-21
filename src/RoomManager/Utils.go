@@ -46,8 +46,6 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 		return ErrorCode.NEW_ROOM_INVALID_PWD
 	}
 
-	m.roomsLocker.Lock()
-	defer m.roomsLocker.Unlock()
 	if len(m.rooms) >= 500 {
 		return ErrorCode.NEW_ROOM_TOO_MANY_ROOMS
 	}
