@@ -5,7 +5,6 @@ import (
 	"Radio"
 	"Socket"
 	"encoding/json"
-	"log"
 	"time"
 )
 
@@ -138,7 +137,6 @@ func (m *Room) handleArchiveSign(data []byte, client *Socket.SocketClient) {
 	}
 
 	directSendCommand(resp, client)
-	log.Println(req, resp)
 }
 
 func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
@@ -174,11 +172,10 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 		Errcode:    0,
 	}
 
-	log.Println(req, resp)
 	directSendCommand(resp, client)
 
 	if resp.Result {
-		log.Println("startPos", startPos, "dataLength", dataLength)
+		debugOut("startPos", startPos, "dataLength", dataLength)
 		m.radio.AddClient(client, startPos, dataLength)
 	}
 }
@@ -195,7 +192,7 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 		Result:   false,
 	}
 
-	log.Println("request key", req.Key, "room key", m.Key())
+	debugOut("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
 		m.sendCommandTo(resp, client)
@@ -210,7 +207,6 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 	}
 
 	resp.Result = true
-	log.Println(req, resp)
 	m.sendCommandTo(resp, client)
 	m.broadcastCommand(action)
 }
@@ -228,7 +224,7 @@ func (m *Room) handleCheckout(data []byte, client *Socket.SocketClient) {
 		Errcode:  ErrorCode.CHECKOUT_UNKNOWN,
 	}
 
-	log.Println("request key", req.Key, "room key", m.Key())
+	debugOut("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
 		resp.Errcode = ErrorCode.CHECKOUT_KEY_INCORRECT
@@ -245,7 +241,6 @@ func (m *Room) handleCheckout(data []byte, client *Socket.SocketClient) {
 	m.lastCheck = time.Now()
 
 	resp.Result = true
-	log.Println(req, resp)
 	m.sendCommandTo(resp, client)
 }
 
@@ -261,7 +256,7 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 		Result:   false,
 	}
 
-	log.Println("request key", req.Key, "room key", m.Key())
+	debugOut("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
 		m.sendCommandTo(resp, client)
@@ -278,11 +273,10 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 		m.sendCommandTo(action, cli)
 		m.kickClient(cli)
 	} else {
-		log.Println("Cannot find target client to kick:", target)
+		debugOut("Cannot find target client to kick:", target)
 	}
 
 	resp.Result = true
-	log.Println(req, resp)
 	m.sendCommandTo(resp, client)
 }
 
@@ -298,7 +292,7 @@ func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
 		Result:   false,
 	}
 
-	log.Println("request key", req.Key, "room key", m.Key())
+	debugOut("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
 		m.sendCommandTo(resp, client)
@@ -308,7 +302,6 @@ func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
 	m.Options.EmptyClose = true
 
 	resp.Result = true
-	log.Println(req, resp)
 	m.sendCommandTo(resp, client)
 
 	var action = CloseAction{
@@ -332,6 +325,5 @@ func (m *Room) handleOnlineList(data []byte, client *Socket.SocketClient) {
 		Result:     true,
 		OnlineList: m.OnlineList(),
 	}
-	log.Println(req, resp)
 	m.sendCommandTo(resp, client)
 }

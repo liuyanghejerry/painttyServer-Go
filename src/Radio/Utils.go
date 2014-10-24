@@ -11,8 +11,6 @@ import (
 	"strings"
 )
 
-import "log"
-
 const (
 	CHUNK_SIZE          int64 = 1024 * 400 // Bytes
 	MAX_CHUNKS_IN_QUEUE       = 2048       // which means there shuold be 2048 RadioChunk instances in pending queue at most
@@ -89,7 +87,7 @@ func pushRamChunk(chunk RAMChunk, queue *RadioTaskList) {
 func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 	list.locker.Lock()
 	defer list.locker.Unlock()
-	log.Println("appended", chunk)
+	debugOut("appended", chunk)
 	switch chunk.(type) {
 	case RAMChunk:
 		pushRamChunk(chunk.(RAMChunk), list)
@@ -123,13 +121,13 @@ func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 
 	if list.Length() >= MAX_CHUNKS_IN_QUEUE*2 {
 		// TODO: add another function to re-split chunks in queue
-		log.Println("There're ", list.Length(), "chunks in a single queue!")
+		debugOut("There're ", list.Length(), "chunks in a single queue!")
 	}
 }
 
 func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *BufferedFile.BufferedFile) {
-	//log.Println("fetchAndSend", list.Tasks())
-	//log.Println("tasks fetchAndSend", list.tasks, len(tasks))
+	//debugOut("fetchAndSend", list.Tasks())
+	//debugOut("tasks fetchAndSend", list.tasks, len(tasks))
 	list.locker.Lock()
 	defer list.locker.Unlock()
 	if list.Length() <= 0 {
@@ -143,16 +141,16 @@ func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *Buffer
 		var item = item.(FileChunk)
 		var buf = make([]byte, item.Length)
 		length, err := file.ReadAt(buf, item.Start)
-		//log.Println("fetched length", length)
+		//debugOut("fetched length", length)
 		if int64(length) != item.Length || err != nil {
 			// move back
 			list.PushFront(item)
 			return
 		}
-		log.Println("write to client", len(buf))
+		debugOut("write to client", len(buf))
 		go client.WriteRaw(buf)
 	case RAMChunk:
-		log.Println("write ram chunk to client", len(item.(RAMChunk).Data))
+		debugOut("write ram chunk to client", len(item.(RAMChunk).Data))
 		go client.WriteRaw(item.(RAMChunk).Data)
 	}
 }

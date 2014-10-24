@@ -4,12 +4,14 @@ package BufferedFile
 
 import (
 	"errors"
-	//"log"
+	cDebug "github.com/tj/go-debug"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+var debugOut = cDebug.Debug("BufferedFile")
 
 type BufferedFileOption struct {
 	FileName   string
@@ -78,11 +80,11 @@ func (f *BufferedFile) Sync() error {
 		f.locker.Unlock()
 	}()
 	var mark = atomic.LoadInt64(&f.waterMark)
-	//log.Println("watermark read", mark)
+	//debugOut("watermark read", mark)
 	if mark < 1 {
 		return nil
 	}
-	//log.Println("write to system file", mark)
+	//debugOut("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
 	atomic.AddInt64(&f.fileSize, mark)
@@ -97,11 +99,11 @@ func (f *BufferedFile) innerSync() error {
 		f.openForRead()
 	}()
 	var mark = atomic.LoadInt64(&f.waterMark)
-	//log.Println("watermark read", mark)
+	//debugOut("watermark read", mark)
 	if mark < 1 {
 		return nil
 	}
-	//log.Println("write to system file", mark)
+	//debugOut("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
 	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
 	atomic.AddInt64(&f.fileSize, mark)
@@ -162,7 +164,6 @@ func (f *BufferedFile) Write(data []byte) (int64, error) {
 		l, err := f.file.Write(data)
 		return int64(l), err
 	}
-	//copy(f.buffer, data)
 	for i, j := atomic.LoadInt64(&f.waterMark), int64(0); j < int64(len(data)) && i < int64(len(f.buffer)); i, j = i+1, j+1 {
 		f.buffer[i] = data[j]
 	}
@@ -178,20 +179,21 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 	var length = int64(len(data))
 	var mark = atomic.LoadInt64(&f.waterMark)
 	var err error = nil
-	//log.Println(fileSize, mark, f.wholeSize, off, length)
+	debugOut("fileSize: %d, waterMark: %d, whileSize: %d, readOff: %d, readLen: %d",
+		fileSize, mark, f.wholeSize, off, length)
 	if off+length > fileSize+mark {
 		return 0, errors.New("Cannot read so much")
 	}
 	// all in file
 	if off+length <= fileSize && fileSize != 0 {
-		//log.Println("all in file")
+		debugOut("all in file")
 		l, e := f.file.ReadAt(data, off)
 		return int64(l), e
 	}
 
 	// all in buffer
 	if off > fileSize {
-		//log.Println("all in buffer")
+		debugOut("all in buffer")
 		start := off - fileSize
 		num := copy(data, f.buffer[start:start+length])
 		return int64(num), nil
@@ -199,7 +201,7 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 
 	// half in buffer, and the other half in file
 	// read file first
-	//log.Println("half, half")
+	debugOut("half, half")
 	var file_buf = make([]byte, fileSize-off)
 	_, err = f.file.ReadAt(file_buf, off)
 	// copy bytes in buffer then

@@ -1,11 +1,12 @@
 package Radio
 
 import "time"
-
-import "log"
 import "Socket"
 import "BufferedFile"
 import "sync"
+import cDebug "github.com/tj/go-debug"
+
+var debugOut = cDebug.Debug("Radio")
 
 type RadioTaskList struct {
 	tasks  []RadioChunk
@@ -122,7 +123,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 			Length: chunkSize,
 		})
 		list.Append(chunks)
-		log.Println("tasks assigned", list.Tasks())
+		debugOut("tasks assigned", list.Tasks())
 	}
 	var radioClient = RadioClient{
 		client:    client,
@@ -130,7 +131,7 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 		writeChan: make(chan FileChunk),
 		list:      list,
 	}
-	//log.Println("init tasks", radioClient.list)
+	//debugOut("init tasks", radioClient.list)
 
 	r.clients[client] = &radioClient
 
@@ -145,19 +146,19 @@ func (r *Radio) processClient(client *Socket.SocketClient, radioClient *RadioCli
 			return
 		case chunk, ok := <-radioClient.sendChan:
 			if ok {
-				log.Println("send chan happened")
+				debugOut("send chan happened")
 				appendToPendings(chunk, radioClient.list)
 			} else {
-				log.Println("send chan miss-matched")
+				debugOut("send chan miss-matched")
 				r.RemoveClient(client)
 				return
 			}
 		case chunk, ok := <-radioClient.writeChan:
 			if ok {
-				log.Println("write chan happened")
+				debugOut("write chan happened")
 				appendToPendings(chunk, radioClient.list)
 			} else {
-				log.Println("write chan miss-matched")
+				debugOut("write chan miss-matched")
 				r.RemoveClient(client)
 				return
 			}
@@ -173,14 +174,14 @@ func (r *Radio) processClient(client *Socket.SocketClient, radioClient *RadioCli
 func (r *Radio) RemoveClient(client *Socket.SocketClient) {
 	r.locker.Lock()
 	defer r.locker.Unlock()
-	log.Println("remove client from radio")
+	debugOut("remove client from radio")
 	delete(r.clients, client)
 }
 
 func (r *Radio) RemoveAllClients() {
 	r.locker.Lock()
 	defer r.locker.Unlock()
-	log.Println("remove client from radio")
+	debugOut("remove client from radio")
 	r.clients = make(map[*Socket.SocketClient]*RadioClient)
 }
 
@@ -202,7 +203,7 @@ func (r *Radio) singleSend(data []byte, client *Socket.SocketClient) {
 	case cli.sendChan <- RAMChunk{data}:
 	case <-time.After(time.Second * 10):
 		r.RemoveClient(client)
-		log.Println("sendChan failed in singleSend")
+		debugOut("sendChan failed in singleSend")
 	}
 	//}()
 }
@@ -217,7 +218,7 @@ func send_helper(
 	case cli.sendChan <- RAMChunk{data}:
 	case <-time.After(time.Second * 10):
 		r.RemoveClient(client)
-		log.Println("sendChan failed in send")
+		debugOut("sendChan failed in send")
 	}
 }
 
@@ -244,7 +245,7 @@ func write_helper(
 	}:
 	case <-time.After(time.Second * 10):
 		r.RemoveClient(client)
-		log.Println("writeChan failed in write")
+		debugOut("writeChan failed in write")
 	}
 }
 
@@ -252,7 +253,7 @@ func write_helper(
 func (r *Radio) write(data []byte) {
 	var oldPos = r.file.WholeSize()
 	wrote, err := r.file.Write(data)
-	log.Println("wrote", wrote, "into radio")
+	debugOut("wrote", wrote, "into radio")
 	if err != nil {
 		panic(err)
 	}
@@ -260,7 +261,7 @@ func (r *Radio) write(data []byte) {
 	r.locker.Lock()
 	defer r.locker.Unlock()
 	for client, cli := range r.clients {
-		log.Println("published")
+		debugOut("published")
 		go write_helper(client, cli, data, r, oldPos)
 	}
 }

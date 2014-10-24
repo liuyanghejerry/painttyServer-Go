@@ -3,17 +3,16 @@ package RoomManager
 import "encoding/json"
 import "Socket"
 import "Room"
-import "log"
 import "github.com/syndtr/goleveldb/leveldb/opt"
 
 func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	req := &RoomListRequest{}
 	json.Unmarshal(data, &req)
-	log.Println(req.Request)
+	debugOut(req.Request)
 	roomlist := make([]RoomPublicInfo, 0, 100)
 	m.roomsLocker.Lock()
 	defer m.roomsLocker.Unlock()
-	log.Println("room count", len(m.rooms))
+	debugOut("room count", len(m.rooms))
 	for _, v := range m.rooms {
 		room := RoomPublicInfo{
 			Name:          v.Options.Name,
@@ -92,7 +91,7 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	// insert to db
 	info_to_insert := room.Dump()
 	write_opt := &opt.WriteOptions{false}
-	log.Println(room.Options.Name, string(info_to_insert))
+	debugOut(room.Options.Name, string(info_to_insert))
 	m.db.Put([]byte("room-"+room.Options.Name), info_to_insert, write_opt)
 
 	var resp = NewRoomResponse{

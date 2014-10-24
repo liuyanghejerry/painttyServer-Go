@@ -8,12 +8,15 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
+	cDebug "github.com/tj/go-debug"
 	"log"
 	"net"
 	"strconv"
 	"sync"
 	//"time"
 )
+
+var debugOut = cDebug.Debug("RoomManager")
 
 type RoomManager struct {
 	ln          *net.TCPListener
@@ -68,7 +71,7 @@ func (m *RoomManager) recovery() error {
 		value := iter.Value()
 		info := parseRoomRuntimeInfo(value)
 		room, err := Room.RecoverRoom(info)
-		log.Println("Room recovered", string(value))
+		debugOut("Room recovered", string(value))
 		if err != nil {
 			panic(err)
 		}

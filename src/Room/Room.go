@@ -5,6 +5,7 @@ import (
 	"Radio"
 	"Router"
 	"Socket"
+	cDebug "github.com/tj/go-debug"
 	"log"
 	"net"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"sync"
 	"time"
 )
+
+var debugOut = cDebug.Debug("Room")
 
 type RoomOption struct {
 	MaxLoad    int
@@ -52,17 +55,17 @@ func init() {
 }
 
 func (m *Room) Close() {
-	log.Println("would like to close Room")
+	debugOut("would like to close Room")
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	close(m.GoingClose)
-	log.Println("room channel closed")
+	debugOut("room channel closed")
 	m.radio.Close()
-	log.Println("room radio closed")
+	debugOut("room radio closed")
 	m.radio.Remove()
-	log.Println("room radio removed")
+	debugOut("room radio removed")
 	m.ln.Close()
-	log.Println("room connection closed")
+	debugOut("room connection closed")
 }
 
 func (m *Room) init() (err error) {
@@ -85,7 +88,7 @@ func (m *Room) init() (err error) {
 		var source = append([]byte(m.Options.Name),
 			[]byte(m.Options.Password)...)
 		m.key = genSignedKey(source)
-		log.Println("key", m.key)
+		debugOut("key", m.key)
 
 		addr, err = net.ResolveTCPAddr("tcp", ":0")
 		if err != nil {
@@ -103,7 +106,7 @@ func (m *Room) init() (err error) {
 	data_path := filepath.Join(data_dir, m.archiveSign+".data")
 
 	if os.MkdirAll(path.Join(data_dir), 0666) != nil {
-		log.Println("Cannot make dir", path.Join(data_dir))
+		debugOut("Cannot make dir", path.Join(data_dir))
 		panic(err)
 	}
 
@@ -204,7 +207,7 @@ func (m *Room) processExpire() {
 }
 
 func (m *Room) Run() error {
-	log.Println("Room ", m.Options.Name, " is running")
+	debugOut("Room ", m.Options.Name, " is running")
 	go m.processExpire()
 	for {
 		select {
@@ -232,7 +235,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 		for {
 			select {
 			case _, _ = <-m.GoingClose:
-				log.Println("Room is going go close")
+				debugOut("Room is going go close")
 				m.removeAllClient()
 				return
 			case pkg, ok := <-client.PackageChan:
@@ -254,7 +257,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						Data: pkg.Repacked,
 					}:
 					case <-time.After(time.Second * 5):
-						log.Println("WriteChan failed in processClient")
+						debugOut("WriteChan failed in processClient")
 					}
 				case Socket.MESSAGE:
 					if !m.hasUser(client) {
@@ -265,7 +268,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						Data: pkg.Repacked,
 					}:
 					case <-time.After(time.Second * 5):
-						log.Println("SendChan failed in processClient")
+						debugOut("SendChan failed in processClient")
 					}
 				}
 				//}()
@@ -274,7 +277,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				m.processEmptyClose()
 				return
 			case <-time.After(time.Second * 10):
-				log.Println("processClient blocked detected")
+				debugOut("processClient blocked detected")
 				m.kickClient(client)
 				return
 			}
@@ -283,26 +286,26 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 }
 
 func (m *Room) removeClient(client *Socket.SocketClient) {
-	log.Println("would like to remove client from room")
+	debugOut("would like to remove client from room")
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	delete(m.clients, client)
 	m.radio.RemoveClient(client)
-	log.Println("client removed from room")
+	debugOut("client removed from room")
 }
 
 func (m *Room) removeAllClient() {
-	log.Println("would like to remove all clients from room")
+	debugOut("would like to remove all clients from room")
 	m.locker.Lock()
 	defer m.locker.Unlock()
 	m.removeAllClient_internal()
 }
 
 func (m *Room) removeAllClient_internal() {
-	log.Println("would like to remove all clients from room")
+	debugOut("would like to remove all clients from room")
 	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	m.radio.RemoveAllClients()
-	log.Println("all clients removed from room")
+	debugOut("all clients removed from room")
 }
 
 func (m *Room) kickClient(target *Socket.SocketClient) {

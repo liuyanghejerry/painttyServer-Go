@@ -2,8 +2,10 @@ package Socket
 
 import "net"
 import "time"
-import "log"
+import cDebug "github.com/tj/go-debug"
 import "sync"
+
+var debugOut = cDebug.Debug("Socket")
 
 type SocketClient struct {
 	PackageChan chan Package
@@ -91,7 +93,7 @@ func (c *SocketClient) Close() {
 		close(c.PackageChan)
 		close(c.rawChan)
 		c.con.Close()
-		log.Println("client closed")
+		debugOut("client closed")
 	})
 }
 
@@ -102,20 +104,20 @@ func writeLoop(client *SocketClient, con *net.TCPConn) {
 			return
 		case data, ok := <-client.rawChan:
 			if !ok {
-				log.Println("client rawChan already closed")
+				debugOut("client rawChan already closed")
 				client.Close()
 				return
 			}
 			//client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
 			_, err := client.con.Write(data)
 			if err != nil {
-				log.Println("cannot make write on client")
+				debugOut("cannot make write on client")
 				client.Close()
 				return
 			}
-			log.Println("wrote succeed")
+			debugOut("wrote succeed")
 		case <-time.After(60 * time.Second):
-			log.Println("client write timeout")
+			debugOut("client write timeout")
 			client.Close()
 		}
 	}

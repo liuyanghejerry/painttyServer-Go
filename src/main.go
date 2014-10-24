@@ -24,5 +24,6 @@ func main() {
 	for re, times := runServer(), 0; re != nil && times < 20; times++ {
 		re = runServer()
 	}
+	log.Println("Server died.")
 	return
 }
