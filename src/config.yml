@@ -1,6 +1,6 @@
 --- # Main Configuration
    salt: "salt.key"
-   manager_port: 18573
+   manager_port: 7777
    data_dir: "data"
-   expiration: 1
+   expiration: 48
    announcement: "大家好，这里是茶绘君的测试版服务器。如果大家发现BUG，请尽快与我们联系哦。<br>"

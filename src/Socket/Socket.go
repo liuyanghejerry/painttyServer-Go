@@ -173,6 +173,10 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	}
 	reader := NewSocketReader()
 
+	con.SetKeepAlive(true)
+	con.SetNoDelay(true)
+	con.SetLinger(10)
+
 	go writeLoop(&client, con)
 	go readLoop(&client, con, &reader)
 
