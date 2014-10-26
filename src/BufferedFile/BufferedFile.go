@@ -86,7 +86,7 @@ func (f *BufferedFile) Sync() error {
 	}
 	//debugOut("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
-	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
+	//f.buffer = make([]byte, f.option.BufferSize) // // FIXME: seems leaking
 	atomic.AddInt64(&f.fileSize, mark)
 	//f.waterMark = 0
 	atomic.StoreInt64(&f.waterMark, 0)
@@ -105,7 +105,7 @@ func (f *BufferedFile) innerSync() error {
 	}
 	//debugOut("write to system file", mark)
 	_, err := f.file.Write(f.buffer[0:mark])
-	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
+	//f.buffer = make([]byte, f.option.BufferSize) // FIXME: seems leaking
 	atomic.AddInt64(&f.fileSize, mark)
 	//f.waterMark = 0
 	atomic.StoreInt64(&f.waterMark, 0)
