@@ -6,6 +6,15 @@ import (
 	"log"
 )
 
+import _ "net/http/pprof"
+import http "net/http"
+
+func init() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6767", nil))
+	}()
+}
+
 func runServer() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
