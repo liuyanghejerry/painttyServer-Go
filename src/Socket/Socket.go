@@ -139,7 +139,11 @@ func readLoop(client *SocketClient, con *net.TCPConn, reader *SocketReader) {
 			if outBytes == 0 {
 				time.Sleep(1 * time.Second)
 			} else {
-				reader.OnData(buffer[0:outBytes])
+				err = reader.OnData(buffer[0:outBytes])
+				if err != nil {
+					client.Close()
+					return
+				}
 			}
 		}
 

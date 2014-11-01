@@ -23,7 +23,8 @@ func NewSocketReader() SocketReader {
 	return reader
 }
 
-func (r *SocketReader) OnData(chunk []byte) {
+func (r *SocketReader) OnData(chunk []byte) (err error) {
+	err = nil
 	r.buffer = append(r.buffer, chunk...)
 
 	var GET_PACKAGE_SIZE_FROM_DATA = func() int {
@@ -65,9 +66,9 @@ func (r *SocketReader) OnData(chunk []byte) {
 		var dataBlock = packageData[1:]              // dataBlock has no header
 		var repacked = REBUILD(packageData)          // repacked, should be equal with packageData
 		if p_header.Compress {
-			var uncompressed_data, err = Common.QUncompress(dataBlock)
+			uncompressed_data, err := Common.QUncompress(dataBlock)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			var p = Package{
 				p_header.PackType,
@@ -92,4 +93,5 @@ func (r *SocketReader) OnData(chunk []byte) {
 
 		r.dataSize = 0
 	}
+	return err
 }
