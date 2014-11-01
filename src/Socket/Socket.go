@@ -172,7 +172,7 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 		PackageChan: make(chan Package),
 		con:         con,
 		GoingClose:  make(chan bool),
-		rawChan:     make(chan []byte, 1024*100), // 100KB buffer for each client
+		rawChan:     make(chan []byte, 40), // 40 arrays for each client
 		closed:      sync.Once{},
 	}
 	reader := NewSocketReader()
