@@ -16,11 +16,11 @@ var debugOut = cDebug.Debug("BufferedFile")
 type BufferedFileOption struct {
 	FileName   string
 	WriteCycle time.Duration //  60*1000 // in milliseconds
-	BufferSize int32         //  1024*100 // in bytes
+	BufferSize int32         //  1024*50 // in bytes
 }
 
 type BufferedFile struct {
-	option     BufferedFileOption
+	option     *BufferedFileOption
 	buffer     []byte
 	waterMark  int64
 	fileSize   int64
@@ -220,7 +220,7 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 	return int64(len(data)), err
 }
 
-func MakeBufferedFile(option BufferedFileOption) (*BufferedFile, error) {
+func MakeBufferedFile(option *BufferedFileOption) (*BufferedFile, error) {
 	var bufFile = BufferedFile{
 		option,
 		make([]byte, option.BufferSize),
