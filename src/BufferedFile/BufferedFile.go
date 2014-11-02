@@ -16,7 +16,7 @@ var debugOut = cDebug.Debug("BufferedFile")
 type BufferedFileOption struct {
 	FileName   string
 	WriteCycle time.Duration //  60*1000 // in milliseconds
-	BufferSize int           //  1024*1024 // in bytes
+	BufferSize int32         //  1024*100 // in bytes
 }
 
 type BufferedFile struct {
@@ -128,7 +128,7 @@ func (f *BufferedFile) Clear() error {
 	atomic.StoreInt64(&f.wholeSize, 0)
 	atomic.StoreInt64(&f.waterMark, 0)
 	atomic.StoreInt64(&f.fileSize, 0)
-	f.buffer = make([]byte, f.option.BufferSize) // optional, may re-use
+	//f.buffer = make([]byte, f.option.BufferSize) // FIXME: same reason
 	f.file.Seek(0, 0)
 	if err := f.file.Truncate(0); err != nil {
 		return err
@@ -228,7 +228,7 @@ func MakeBufferedFile(option BufferedFileOption) (*BufferedFile, error) {
 		0,
 		0,
 		nil,
-		make(chan bool, 1),
+		make(chan bool),
 		sync.Mutex{},
 	}
 

@@ -182,9 +182,10 @@ func (m *Room) hasUser(u *Socket.SocketClient) bool {
 }
 
 func (m *Room) processEmptyClose() {
-	//m.locker.Lock()
-	//defer m.locker.Unlock()
-	if len(m.clients) <= 0 && m.Options.EmptyClose {
+	m.locker.Lock()
+	clientLen := len(m.clients)
+	m.locker.Unlock()
+	if clientLen <= 0 && m.Options.EmptyClose {
 		m.Close()
 	}
 }
