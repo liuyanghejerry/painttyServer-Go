@@ -11,9 +11,10 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	debugOut(req.Request)
 	roomlist := make([]RoomPublicInfo, 0, 100)
 	m.roomsLocker.Lock()
-	defer m.roomsLocker.Unlock()
-	debugOut("room count", len(m.rooms))
-	for _, v := range m.rooms {
+	roomsCopy := m.rooms
+	m.roomsLocker.Unlock()
+	debugOut("room count", len(roomsCopy))
+	for _, v := range roomsCopy {
 		room := RoomPublicInfo{
 			Name:          v.Options.Name,
 			CurrentLoad:   v.CurrentLoad(),

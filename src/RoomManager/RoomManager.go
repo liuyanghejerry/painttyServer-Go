@@ -112,27 +112,20 @@ func (m *RoomManager) Run() (err error) {
 	if err != nil {
 		return err
 	}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case _, _ = <-m.goingClose:
-				return
-			default:
-				conn, err := m.ln.AcceptTCP()
-				if err != nil {
-					// handle error
-					continue
-				}
-				var client = Socket.MakeSocketClient(conn)
-				m.processClient(client)
+	for {
+		select {
+		case _, _ = <-m.goingClose:
+			return err
+		default:
+			conn, err := m.ln.AcceptTCP()
+			if err != nil {
+				// handle error
+				continue
 			}
-
+			var client = Socket.MakeSocketClient(conn)
+			m.processClient(client)
 		}
-	}()
-	wg.Wait()
+	}
 	return err
 }
 
