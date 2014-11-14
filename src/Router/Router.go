@@ -1,17 +1,20 @@
 package Router
 
 import "encoding/json"
+import "sync"
 import "Socket"
 
 type RouterHandler func([]byte, *Socket.SocketClient)
 
 type Router struct {
-	table map[string]RouterHandler
+	table  map[string]*RouterHandler
+	locker sync.RWMutex
 }
 
 func MakeRouter() *Router {
 	return &Router{
-		make(map[string]RouterHandler),
+		make(map[string]*RouterHandler),
+		sync.RWMutex{},
 	}
 }
 
@@ -23,12 +26,16 @@ func (r *Router) OnMessage(data []byte, client *Socket.SocketClient) {
 
 	var request = result["request"].(string)
 
+	r.locker.RLock()
 	if val, ok := r.table[request]; ok {
 		//do something here
-		val(data, client)
+		(*val)(data, client)
 	}
+	r.locker.RUnlock()
 }
 
 func (r *Router) Register(request string, handler RouterHandler) {
-	r.table[request] = handler
+	r.locker.Lock()
+	defer r.locker.Unlock()
+	r.table[request] = &handler
 }

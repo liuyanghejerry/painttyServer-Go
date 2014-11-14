@@ -122,8 +122,7 @@ func (m *RoomManager) Run() (err error) {
 				// handle error
 				continue
 			}
-			var client = Socket.MakeSocketClient(conn)
-			m.processClient(client)
+			m.processClient(Socket.MakeSocketClient(conn))
 		}
 	}
 	return err
