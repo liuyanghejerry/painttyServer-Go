@@ -248,7 +248,10 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				//go func() {
 				switch pkg.PackageType {
 				case Socket.COMMAND:
-					m.router.OnMessage(pkg.Unpacked, client)
+					err := m.router.OnMessage(pkg.Unpacked, client)
+					if err != nil {
+						m.kickClient(client)
+					}
 				case Socket.DATA:
 					if !m.hasUser(client) {
 						return

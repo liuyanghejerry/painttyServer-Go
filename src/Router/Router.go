@@ -18,10 +18,10 @@ func MakeRouter() *Router {
 	}
 }
 
-func (r *Router) OnMessage(data []byte, client *Socket.SocketClient) {
+func (r *Router) OnMessage(data []byte, client *Socket.SocketClient) error {
 	var result map[string]interface{}
 	if err := json.Unmarshal(data, &result); err != nil {
-		panic(err)
+		return err
 	}
 
 	var request = result["request"].(string)
@@ -32,6 +32,7 @@ func (r *Router) OnMessage(data []byte, client *Socket.SocketClient) {
 		(*val)(data, client)
 	}
 	r.locker.RUnlock()
+	return nil
 }
 
 func (r *Router) Register(request string, handler RouterHandler) {

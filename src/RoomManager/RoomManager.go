@@ -135,12 +135,14 @@ func (m *RoomManager) processClient(client *Socket.SocketClient) {
 			case _, _ = <-m.goingClose:
 				return
 			case pkg, ok := <-client.PackageChan:
-				if ok {
-					if pkg.PackageType == Socket.MANAGER {
-						m.router.OnMessage(pkg.Unpacked, client)
-					}
-				} else {
+				if !ok {
 					return
+				}
+				if pkg.PackageType == Socket.MANAGER {
+					err := m.router.OnMessage(pkg.Unpacked, client)
+					if err != nil {
+						client.Close()
+					}
 				}
 			case _, _ = <-client.GoingClose:
 				return
