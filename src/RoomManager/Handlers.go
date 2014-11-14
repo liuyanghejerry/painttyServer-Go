@@ -10,7 +10,7 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	json.Unmarshal(data, &req)
 	debugOut(req.Request)
 	m.roomsLocker.Lock()
-	var roomsCopy map[string]*Room.Room
+	var roomsCopy = map[string]*Room.Room{}
 	for k, v := range m.rooms {
 		roomsCopy[k] = v
 	}
