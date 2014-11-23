@@ -237,10 +237,6 @@ func (m *Room) Run() error {
 
 func (m *Room) processClient(client *Socket.SocketClient) {
 	go func() {
-		<-time.After(time.Second * 10)
-		client.Close()
-	}()
-	go func() {
 		for {
 			select {
 			case _, _ = <-m.GoingClose:
