@@ -150,6 +150,10 @@ func (m *Room) Key() string {
 	return m.key
 }
 
+func (m *Room) Password() string {
+	return m.Options.Password
+}
+
 func (m *Room) CurrentLoad() int {
 	m.locker.Lock()
 	defer m.locker.Unlock()
@@ -232,6 +236,10 @@ func (m *Room) Run() error {
 }
 
 func (m *Room) processClient(client *Socket.SocketClient) {
+	go func() {
+		<-time.After(time.Second * 10)
+		client.Close()
+	}()
 	go func() {
 		for {
 			select {

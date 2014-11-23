@@ -99,14 +99,14 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	m.db.Put([]byte("room-"+room.Options.Name), info_to_insert, write_opt)
 
 	var resp = NewRoomResponse{
-		"newroom",
-		true,
-		NewRoomInfoForReply{
-			room.Port(),
-			room.Key(),
-			"",
+		Response: "newroom",
+		Result:   true,
+		Info: NewRoomInfoForReply{
+			Port:     room.Port(),
+			Key:      room.Key(),
+			Password: room.Password(),
 		},
-		0,
+		ErrCode: 0,
 	}
 	raw, err := json.Marshal(resp)
 	if err != nil {
