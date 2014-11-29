@@ -5,6 +5,7 @@ import (
 	"Router"
 	"Socket"
 	"encoding/json"
+	"flag"
 	"log"
 	"net"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"time"
 )
 
-const painttyServer = `D:\Program\golang\painttyServer1.5\src\src.exe`
+var painttyServer = ``
 
 var args = []string{
 	"a",
@@ -23,7 +24,13 @@ var env = []string{
 	"a=0",
 }
 
-const workingDir = `D:\Program\golang\painttyServer1.5\src\`
+var workingDir = ``
+
+func init() {
+	flag.StringVar(&workingDir, "wd", "", "working path of painttyServer")
+	flag.StringVar(&painttyServer, "server", "", "path of painttyServer")
+	flag.Parse()
+}
 
 func startProc() *os.Process {
 	proc, err := os.StartProcess(painttyServer,
