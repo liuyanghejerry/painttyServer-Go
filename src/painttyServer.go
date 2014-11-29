@@ -1,6 +1,7 @@
 package main
 
 import (
+	"Config"
 	"RoomManager"
 	"log"
 	"runtime"
@@ -18,7 +19,8 @@ func init() {
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	Config.InitConf()
 	var manager = RoomManager.ServeManager()
-	manager.Run()
+	log.Fatalln(manager.Run())
 	return
 }

@@ -6,12 +6,17 @@ import (
 	yaml "gopkg.in/yaml.v1"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 var confMap map[interface{}]interface{}
 
-func init() {
-	confMap = readConfMap("./config.yml")
+func InitConf() {
+	workingDir, err := os.Getwd()
+	log.Println("workingDir:", workingDir)
+	currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	log.Println("currentDir:", currentDir)
+	confMap = readConfMap(filepath.Join(currentDir, "config.yml"))
 	saltFileName, ok := confMap["salt"].(string)
 	if !ok {
 		log.Println("Salt file cannot be determined by config. Using default salt.key...")
@@ -61,7 +66,8 @@ func GetConfig() map[interface{}]interface{} {
 }
 
 func createSaltFile() []byte {
-	file, err := os.Create("./salt.key")
+	currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	file, err := os.Create(filepath.Join(currentDir, "salt.key"))
 	if err != nil {
 		log.Println("Cannot create salt file.")
 		panic(err)

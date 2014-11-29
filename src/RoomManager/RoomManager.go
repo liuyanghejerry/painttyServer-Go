@@ -30,7 +30,7 @@ type RoomManager struct {
 func (m *RoomManager) init() error {
 	m.goingClose = make(chan bool)
 	m.rooms = make(map[string]*Room.Room)
-	m.router = Router.MakeRouter()
+	m.router = Router.MakeRouter("request")
 	m.router.Register("roomlist", m.handleRoomList)
 	m.router.Register("newroom", m.handleNewRoom)
 

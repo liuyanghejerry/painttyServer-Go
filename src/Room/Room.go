@@ -50,10 +50,6 @@ type Room struct {
 
 var config map[interface{}]interface{}
 
-func init() {
-	config = Config.GetConfig()
-}
-
 func (m *Room) Close() {
 	debugOut("would like to close Room")
 	m.locker.Lock()
@@ -69,9 +65,10 @@ func (m *Room) Close() {
 }
 
 func (m *Room) init() (err error) {
+	config = Config.GetConfig()
 	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	m.GoingClose = make(chan bool)
-	m.router = Router.MakeRouter()
+	m.router = Router.MakeRouter("request")
 
 	var addr *net.TCPAddr
 
