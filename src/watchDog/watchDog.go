@@ -27,8 +27,8 @@ var env = []string{
 var workingDir = ``
 
 func init() {
-	flag.StringVar(&workingDir, "wd", "", "working path of painttyServer")
-	flag.StringVar(&painttyServer, "server", "", "path of painttyServer")
+	flag.StringVar(&workingDir, "wd", ".", "working path of painttyServer")
+	flag.StringVar(&painttyServer, "server", "./painttyServer", "path of painttyServer")
 	flag.Parse()
 }
 
