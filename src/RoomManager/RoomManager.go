@@ -13,7 +13,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
-	//"time"
+	"time"
 )
 
 var debugOut = cDebug.Debug("RoomManager")
@@ -56,6 +56,7 @@ func (m *RoomManager) init() error {
 	log.Println("RoomManager is listening on port", ideal_port)
 
 	m.recovery()
+	go m.shortenRooms()
 
 	return nil
 }
@@ -69,12 +70,17 @@ func (m *RoomManager) recovery() error {
 		// Use key/value.
 		//key := iter.Key()
 		value := iter.Value()
-		info := parseRoomRuntimeInfo(value)
-		room, err := Room.RecoverRoom(info)
-		debugOut("Room recovered", string(value))
+		info, err := parseRoomRuntimeInfo(value)
 		if err != nil {
-			panic(err)
+			log.Println("room is corrupted", iter.Key())
+			continue
 		}
+		room, err := Room.RecoverRoom(info)
+		if err != nil {
+			log.Println("room is corrupted", iter.Key())
+			continue
+		}
+		debugOut("Room recovered", string(value))
 
 		m.roomsLocker.Lock()
 		m.rooms[room.Options.Name] = room
@@ -91,8 +97,41 @@ func (m *RoomManager) recovery() error {
 	return err
 }
 
+func (m *RoomManager) shortenRooms() {
+	for {
+		select {
+		case <-time.After(time.Hour):
+			iter := m.db.NewIterator(dbutil.BytesPrefix([]byte("room-")), nil)
+
+			batch := new(leveldb.Batch)
+
+			for iter.Next() {
+				value := iter.Value()
+				info, err := parseRoomRuntimeInfo(value)
+				if info.Expiration > 1 && err == nil {
+					info.Expiration = info.Expiration - 1
+
+					info_to_insert, err := info.ToJson()
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					batch.Put(iter.Key(), info_to_insert)
+				} else {
+					// delete expired or corrupted room
+					batch.Delete(iter.Key())
+				}
+
+			}
+			iter.Release()
+			m.db.Write(batch, nil)
+		case _, _ = <-m.goingClose:
+			return
+		}
+	}
+}
+
 func (m *RoomManager) waitRoomClosed(roomName string) {
-	log.Println(roomName, "is closed.")
 	m.roomsLocker.Lock()
 	defer m.roomsLocker.Unlock()
 	delete(m.rooms, roomName)

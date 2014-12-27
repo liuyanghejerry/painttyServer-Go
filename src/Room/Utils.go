@@ -24,6 +24,10 @@ type RoomRuntimeInfo struct {
 	Options     RoomOption `json: "options"`
 }
 
+func (r *RoomRuntimeInfo) ToJson() ([]byte, error) {
+	return json.Marshal(*r)
+}
+
 func dumpRoom(room *Room) []byte {
 
 	info := RoomRuntimeInfo{
@@ -34,7 +38,7 @@ func dumpRoom(room *Room) []byte {
 		Options:     room.Options,
 	}
 
-	raw, err := json.Marshal(info)
+	raw, err := info.ToJson()
 	if err != nil {
 		panic(err)
 	}

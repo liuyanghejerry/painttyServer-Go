@@ -5,10 +5,10 @@ import "encoding/json"
 import "ErrorCode"
 import "Config"
 
-func parseRoomRuntimeInfo(data []byte) *Room.RoomRuntimeInfo {
+func parseRoomRuntimeInfo(data []byte) (*Room.RoomRuntimeInfo, error) {
 	info := &Room.RoomRuntimeInfo{}
-	json.Unmarshal(data, info)
-	return info
+	err := json.Unmarshal(data, info)
+	return info, err
 }
 
 func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
