@@ -16,8 +16,7 @@ import (
 var painttyServer = ``
 
 var args = []string{
-	"a",
-	"b",
+	"painttyServer",
 }
 
 var env = []string{
