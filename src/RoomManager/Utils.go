@@ -46,7 +46,7 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 		return ErrorCode.NEW_ROOM_INVALID_PWD
 	}
 
-	if len(m.rooms) >= 500 {
+	if len(m.rooms) >= 1200 {
 		return ErrorCode.NEW_ROOM_TOO_MANY_ROOMS
 	}
 	return 0
