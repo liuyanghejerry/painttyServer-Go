@@ -24,7 +24,14 @@ func QCompress(data []byte) ([]byte, error) {
 	return tmp.Bytes(), nil
 }
 
-func QUncompress(data []byte) ([]byte, error) {
+func QUncompress(data []byte) (result []byte, err error) {
+	defer func() {
+		// recover from panic if one occured. Set err to nil otherwise.
+		if e := recover(); e != nil {
+			err = e.(error)
+			result = []byte{}
+		}
+	}()
 	var resized = bytes.NewBuffer(data[4:])
 	var tmp bytes.Buffer
 	r, err := zlib.NewReader(resized)
