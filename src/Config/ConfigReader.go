@@ -7,9 +7,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 var confMap map[interface{}]interface{}
+var confMutex = &sync.Mutex{}
 
 func InitConf() {
 	workingDir, err := os.Getwd()
@@ -36,41 +38,61 @@ func InitConf() {
 	}
 	confMap["globalSaltHash"] = saltHash
 
-	announcement, ok := confMap["announcement"].(string)
-	if !ok {
-		log.Println("Announcement not set. Using empty announcement...")
-		confMap["announcement"] = ""
-	} else {
-		confMap["announcement"] = announcement
-	}
+	// loading reloadable ones
+	realoadbles := initReloadableConfs(GetConfig())
 
-	expiration, ok := confMap["expiration"].(int)
-	if !ok {
-		log.Println("Expiration not set. Using 48 as default expiration...")
-		confMap["expiration"] = 48
-	} else {
-		confMap["expiration"] = expiration
-	}
-
-	maxLoad, ok := confMap["max_load"].(int)
-	if !ok {
-		log.Println("max_load not set. Using 8 as default max_load...")
-		confMap["max_load"] = 8
-	} else {
-		confMap["max_load"] = maxLoad
-	}
-
-	maxRoomCount, ok := confMap["max_room_count"].(int)
-	if !ok {
-		log.Println("max_room_count not set. Using 1000 as default max_room_count...")
-		confMap["max_room_count"] = 1000
-	} else {
-		confMap["max_room_count"] = maxRoomCount
+	for k, v := range realoadbles {
+		confMap[k] = v
 	}
 }
 
-func GetConfig() map[interface{}]interface{} {
-	return confMap
+func initReloadableConfs(confs map[interface{}]interface{}) map[interface{}]interface{} {
+	announcement, ok := confs["announcement"].(string)
+	if !ok {
+		log.Println("Announcement not set. Using empty announcement...")
+		confs["announcement"] = ""
+	} else {
+		confs["announcement"] = announcement
+	}
+
+	expiration, ok := confs["expiration"].(int)
+	if !ok {
+		log.Println("Expiration not set. Using 48 as default expiration...")
+		confs["expiration"] = 48
+	} else {
+		confs["expiration"] = expiration
+	}
+
+	maxLoad, ok := confs["max_load"].(int)
+	if !ok {
+		log.Println("max_load not set. Using 8 as default max_load...")
+		confs["max_load"] = 8
+	} else {
+		confs["max_load"] = maxLoad
+	}
+
+	maxRoomCount, ok := confs["max_room_count"].(int)
+	if !ok {
+		log.Println("max_room_count not set. Using 1000 as default max_room_count...")
+		confs["max_room_count"] = 1000
+	} else {
+		confs["max_room_count"] = maxRoomCount
+	}
+
+	return confs
+}
+
+func GetConfig() (newConfMap map[interface{}]interface{}) {
+	confMutex.Lock()
+	defer func() {
+		confMutex.Unlock()
+	}()
+
+	for k, v := range confMap {
+		newConfMap[k] = v
+	}
+
+	return newConfMap
 }
 
 func createSaltFile() []byte {
@@ -159,4 +181,28 @@ func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
 	conf = tmp.(map[interface{}]interface{})
 
 	return conf
+}
+
+func ReloadConf() {
+	log.Println("reloading config...")
+	workingDir, err := os.Getwd()
+	log.Println("workingDir:", workingDir)
+	currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	log.Println("currentDir:", currentDir)
+	newConfMap := readConfMap(filepath.Join(currentDir, "config.yml"))
+	// load old ones
+	oldConfMap := GetConfig()
+
+	// loading reloadable ones
+	realoadbles := initReloadableConfs(newConfMap)
+
+	// merge
+	for k, v := range realoadbles {
+		oldConfMap[k] = v
+	}
+
+	// replace
+	confMutex.Lock()
+	confMap = oldConfMap
+	confMutex.Unlock()
 }

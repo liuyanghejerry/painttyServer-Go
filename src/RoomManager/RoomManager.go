@@ -34,9 +34,7 @@ func (m *RoomManager) init() error {
 	m.router.Register("roomlist", m.handleRoomList)
 	m.router.Register("newroom", m.handleNewRoom)
 
-	config := Config.GetConfig()
-
-	ideal_port, ok := config["manager_port"].(int)
+	ideal_port, ok := Config.GetConfig()["manager_port"].(int)
 	if ideal_port <= 0 || !ok {
 		log.Println("Manager port is not configured, using default ", ideal_port)
 		ideal_port = 18573
