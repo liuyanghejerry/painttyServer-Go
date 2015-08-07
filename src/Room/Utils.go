@@ -2,6 +2,7 @@ package Room
 
 import (
 	//"Radio"
+	"Config"
 	"Socket"
 	"bytes"
 	"encoding/hex"
@@ -77,7 +78,7 @@ func (m *Room) broadcastCommand(resp interface{}) {
 }
 
 func (m *Room) sendAnnouncement(client *Socket.SocketClient) {
-	msg := config["announcement"].(string)
+	msg := Config.GetConfig()["announcement"].(string)
 	if len(msg) <= 0 {
 		return
 	}
@@ -110,7 +111,7 @@ func (m *Room) sendExpirationMsg(client *Socket.SocketClient) {
 
 func genSignedKey(source []byte) string {
 	h := xxhash.New64()
-	r := bytes.NewReader(append(source, config["globalSaltHash"].([]byte)...))
+	r := bytes.NewReader(append(source, Config.GetConfig()["globalSaltHash"].([]byte)...))
 	io.Copy(h, r)
 	hash := h.Sum64()
 	return strconv.FormatUint(hash, 32)
@@ -123,7 +124,7 @@ func (m *Room) genClientId() string {
 		timeData = []byte("asdasdasdfuweyfiaiuehmoixzwe")
 	}
 	var source = append(timeData, []byte(m.Options.Name)...)
-	source = append(source, config["globalSaltHash"].([]byte)...)
+	source = append(source, Config.GetConfig()["globalSaltHash"].([]byte)...)
 	r := bytes.NewReader(source)
 	io.Copy(h, r)
 	hash := h.Sum64()
