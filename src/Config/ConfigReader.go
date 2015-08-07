@@ -186,8 +186,16 @@ func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
 func ReloadConf() {
 	log.Println("reloading config...")
 	workingDir, err := os.Getwd()
+	if err != nil {
+		log.Println("reloading config failed")
+		return
+	}
 	log.Println("workingDir:", workingDir)
 	currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Println("reloading config failed")
+		return
+	}
 	log.Println("currentDir:", currentDir)
 	newConfMap := readConfMap(filepath.Join(currentDir, "config.yml"))
 	// load old ones
@@ -205,4 +213,5 @@ func ReloadConf() {
 	confMutex.Lock()
 	confMap = oldConfMap
 	confMutex.Unlock()
+	log.Println("config reloaded")
 }
