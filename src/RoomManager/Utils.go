@@ -46,7 +46,8 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 		return ErrorCode.NEW_ROOM_INVALID_PWD
 	}
 
-	if len(m.rooms) >= 1200 {
+	maxRoomCount := config["maxRoomCount"].(int)
+	if len(m.rooms) >= maxRoomCount {
 		return ErrorCode.NEW_ROOM_TOO_MANY_ROOMS
 	}
 	return 0
