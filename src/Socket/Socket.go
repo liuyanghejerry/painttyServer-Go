@@ -147,6 +147,7 @@ func readLoop(client *SocketClient, con *net.TCPConn, reader *SocketReader) {
 			} else {
 				err = reader.OnData(buffer[0:outBytes])
 				if err != nil {
+					debugOut("broken data encountered, socket will be closed")
 					client.Close()
 					return
 				}
