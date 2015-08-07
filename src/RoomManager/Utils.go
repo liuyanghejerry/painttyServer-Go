@@ -5,10 +5,10 @@ import "encoding/json"
 import "ErrorCode"
 import "Config"
 
-func parseRoomRuntimeInfo(data []byte) (*Room.RoomRuntimeInfo, error) {
+func parseRoomRuntimeInfo(data []byte) *Room.RoomRuntimeInfo {
 	info := &Room.RoomRuntimeInfo{}
-	err := json.Unmarshal(data, info)
-	return info, err
+	json.Unmarshal(data, info)
+	return info
 }
 
 func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
@@ -46,7 +46,8 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 		return ErrorCode.NEW_ROOM_INVALID_PWD
 	}
 
-	if len(m.rooms) >= 500 {
+	maxRoomCount := config["maxRoomCount"].(int)
+	if len(m.rooms) >= maxRoomCount {
 		return ErrorCode.NEW_ROOM_TOO_MANY_ROOMS
 	}
 	return 0
