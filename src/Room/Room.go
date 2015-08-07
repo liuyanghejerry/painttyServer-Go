@@ -48,8 +48,6 @@ type Room struct {
 	locker      *sync.Mutex
 }
 
-var config map[interface{}]interface{}
-
 func (m *Room) Close() {
 	debugOut("would like to close Room")
 	m.locker.Lock()
@@ -65,7 +63,6 @@ func (m *Room) Close() {
 }
 
 func (m *Room) init() (err error) {
-	config = Config.GetConfig()
 	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	m.GoingClose = make(chan bool)
 	m.router = Router.MakeRouter("request")
@@ -95,7 +92,7 @@ func (m *Room) init() (err error) {
 		m.archiveSign = genArchiveSign(m.Options.Name)
 	}
 
-	data_dir, ok := config["data_dir"].(string)
+	data_dir, ok := Config.GetConfig()["data_dir"].(string)
 	if len(data_dir) <= 0 || !ok {
 		log.Println("Using default data path", "./data")
 		data_dir = "./data/"
@@ -321,7 +318,7 @@ func (m *Room) kickClient(target *Socket.SocketClient) {
 func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
 		Options:    opt,
-		expiration: config["expiration"].(int),
+		expiration: Config.GetConfig()["expiration"].(int),
 		lastCheck:  time.Now(),
 		locker:     &sync.Mutex{},
 	}
