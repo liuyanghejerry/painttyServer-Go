@@ -52,20 +52,20 @@ func InitConf() {
 		confMap["expiration"] = expiration
 	}
 
-	maxLoad, ok := confMap["maxLoad"].(int)
+	maxLoad, ok := confMap["max_load"].(int)
 	if !ok {
-		log.Println("maxLoad not set. Using 8 as default maxLoad...")
-		confMap["maxLoad"] = 8
+		log.Println("max_load not set. Using 8 as default max_load...")
+		confMap["max_load"] = 8
 	} else {
-		confMap["maxLoad"] = maxLoad
+		confMap["max_load"] = maxLoad
 	}
 
-	maxRoomCount, ok := confMap["maxRoomCount"].(int)
+	maxRoomCount, ok := confMap["max_room_count"].(int)
 	if !ok {
-		log.Println("maxRoomCount not set. Using 1000 as default maxRoomCount...")
-		confMap["maxRoomCount"] = 1000
+		log.Println("max_room_count not set. Using 1000 as default max_room_count...")
+		confMap["max_room_count"] = 1000
 	} else {
-		confMap["maxRoomCount"] = maxRoomCount
+		confMap["max_room_count"] = maxRoomCount
 	}
 }
 

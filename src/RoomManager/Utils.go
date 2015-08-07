@@ -14,7 +14,7 @@ func parseRoomRuntimeInfo(data []byte) *Room.RoomRuntimeInfo {
 func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 	config := Config.GetConfig()
 
-	maxLoad := config["maxLoad"].(int)
+	maxLoad := config["max_load"].(int)
 	if option.MaxLoad > maxLoad || option.MaxLoad < 1 {
 		return ErrorCode.NEW_ROOM_INVALID_MAXLOAD
 	}
@@ -46,7 +46,7 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 		return ErrorCode.NEW_ROOM_INVALID_PWD
 	}
 
-	maxRoomCount := config["maxRoomCount"].(int)
+	maxRoomCount := config["max_room_count"].(int)
 	if len(m.rooms) >= maxRoomCount {
 		return ErrorCode.NEW_ROOM_TOO_MANY_ROOMS
 	}
