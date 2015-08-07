@@ -50,3 +50,15 @@ func TestQCompress2(t *testing.T) {
 		t.Error("Compressed content not equal to Uncompressed one", result)
 	}
 }
+
+func TestQCompress3(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+
+	var result, err = QUncompress([]byte{1, 2, 3})
+	t.Log(result, err)
+	if err == nil {
+		t.Error("cannot recover or detect invalid input")
+	}
+}
