@@ -2,6 +2,6 @@
    salt: "salt.key"
    manager_port: 7777
    data_dir: "data"
-   expiration: 12
+   expiration: 18
    max_room_count: 2000
-   announcement: "大家好，这里是茶绘君的测试版服务器。如果大家发现BUG，请尽快与我们联系哦。<br>"
+   announcement: "远处好像传来了 @茶绘君他爹 的声音：记得早睡。<br>"
