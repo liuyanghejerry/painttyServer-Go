@@ -88,6 +88,8 @@ func GetConfig() (newConfMap map[interface{}]interface{}) {
 		confMutex.Unlock()
 	}()
 
+	newConfMap = make(map[interface{}]interface{})
+
 	for k, v := range confMap {
 		newConfMap[k] = v
 	}
