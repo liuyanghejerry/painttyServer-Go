@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"errors"
 )
 
 var debugOut = cDebug.Debug("Room")
@@ -332,7 +333,7 @@ func ServeRoom(opt RoomOption) (*Room, error) {
 	return &room, nil
 }
 
-func RecoverRoom(info *RoomRuntimeInfo) (*Room, error) {
+func RecoverRoom(info *RoomRuntimeInfo) (r *Room, err error) {
 	var room = Room{
 		port:        info.Port,
 		expiration:  info.Expiration,
@@ -345,6 +346,14 @@ func RecoverRoom(info *RoomRuntimeInfo) (*Room, error) {
 	if err := room.init(); err != nil {
 		return &Room{}, err
 	}
+	
+	defer func ()  {
+		if err := recover(); err != nil {
+			log.Println("room recover encountered panic", info.Options.Name, err)
+			r = nil
+			err = errors.New("Room recover failure.")
+		}
+	}()
 
 	return &room, nil
 }
