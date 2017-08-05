@@ -68,11 +68,7 @@ func (m *RoomManager) recovery() error {
 		// Use key/value.
 		//key := iter.Key()
 		value := iter.Value()
-		info, err := parseRoomRuntimeInfo(value)
-		if err != nil {
-			log.Println("room is corrupted", iter.Key())
-			continue
-		}
+		info := parseRoomRuntimeInfo(value)
 		room, err := Room.RecoverRoom(info)
 		if err != nil {
 			log.Println("room is corrupted", iter.Key())
@@ -105,8 +101,8 @@ func (m *RoomManager) shortenRooms() {
 
 			for iter.Next() {
 				value := iter.Value()
-				info, err := parseRoomRuntimeInfo(value)
-				if info.Expiration > 1 && err == nil {
+				info := parseRoomRuntimeInfo(value)
+				if info.Expiration > 1 {
 					info.Expiration = info.Expiration - 1
 
 					info_to_insert, err := info.ToJson()
