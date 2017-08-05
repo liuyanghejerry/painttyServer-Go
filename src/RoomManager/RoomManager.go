@@ -45,9 +45,26 @@ func (m *RoomManager) init() error {
 		// handle error
 		return err
 	}
-	m.ln, err = net.ListenTCP("tcp", addr)
+	
+	for i := 0; ; i++ {
+		m.ln, err = net.ListenTCP("tcp", addr)
+		if err == nil {
+			break
+		}
+		
+		// Retry about 20 times.
+		if i >= 19 {
+			break
+		}
+		log.Println("RoomManager is cannot listen on port, sleep and retry...")
+		
+		// Each retry sleeps 5 seconds
+		time.Sleep(5 * time.Second)		
+	}	
+
 	if err != nil {
 		// handle error
+		log.Println("RoomManager is cannot listen on port after retry", ideal_port)
 		return err
 	}
 
