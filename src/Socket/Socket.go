@@ -13,7 +13,6 @@ type SocketClient struct {
 	GoingClose  chan bool
 	rawChan     chan []byte
 	closed      sync.Once
-	closingLock sync.Mutex
 }
 
 // TODO: due with error
@@ -23,8 +22,6 @@ func (c *SocketClient) WriteRaw(data []byte) (int, error) {
 			c.Close()
 		}
 	}()
-	c.closingLock.Lock()
-	defer c.closingLock.Unlock()
 	c.rawChan <- data
 	return len(data), nil
 }
@@ -92,8 +89,6 @@ func AssamblePack(header PackHeader, data []byte) []byte {
 func (c *SocketClient) Close() {
 	defer func() { recover() }()
 	c.closed.Do(func() {
-		c.closingLock.Lock()
-		defer c.closingLock.Unlock()
 		close(c.GoingClose)
 		close(c.PackageChan)
 		close(c.rawChan)
@@ -124,7 +119,6 @@ func writeLoop(client *SocketClient, con *net.TCPConn) {
 		case <-time.After(60 * time.Second):
 			debugOut("client write timeout")
 			client.Close()
-			return
 		}
 	}
 }
@@ -168,9 +162,7 @@ func pubLoop(client *SocketClient, reader *SocketReader) {
 				return
 			}
 			// pipe Package into public scope
-			client.closingLock.Lock()
 			client.PackageChan <- pkg
-			client.closingLock.Unlock()
 		}
 	}
 }
@@ -183,7 +175,6 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 		GoingClose:  make(chan bool),
 		rawChan:     make(chan []byte, 40), // 40 arrays for each client
 		closed:      sync.Once{},
-		closingLock: sync.Mutex{},
 	}
 	reader := NewSocketReader()
 
