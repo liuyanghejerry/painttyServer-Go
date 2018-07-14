@@ -1,9 +1,9 @@
 package main
 
 import (
-	"RoomManager"
-	"Router"
-	"Socket"
+	"server/pkg/RoomManager"
+	"server/pkg/Router"
+	"server/pkg/Socket"
 	"encoding/json"
 	"flag"
 	"log"
@@ -19,10 +19,6 @@ var args = []string{
 	"painttyServer",
 }
 
-var env = []string{
-	"a=0",
-}
-
 var workingDir = ``
 
 func init() {
@@ -36,13 +32,11 @@ func startProc() *os.Process {
 		args,
 		&os.ProcAttr{
 			Dir: workingDir,
-			//Env:   env,
 			Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
 			Sys:   &syscall.SysProcAttr{},
 		})
 	if err != nil {
-		log.Println(err)
-		panic(err)
+		log.Panicln(err)
 	}
 	return proc
 }
@@ -130,5 +124,4 @@ func main() {
 		seemsDead := loop(client)
 		watch(proc, seemsDead)
 	}
-	return
 }

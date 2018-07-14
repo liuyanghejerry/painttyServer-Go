@@ -1,0 +1,9 @@
+--- # Main Configuration
+   manager_port: 7777
+   salt: "./data/salt.key"
+   data_dir: "./data/data"
+   db_dir: "./data/db"
+   expiration: 12
+   max_load: 8
+   max_room_count: 2000
+   announcement: "久违了呦。<br>"

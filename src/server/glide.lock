@@ -1,0 +1,33 @@
+hash: 3e73a9c2838fd9d89491082611fe59ec61611a854d30c0ea5034be2f82e23178
+updated: 2018-07-14T17:47:17.9502577+08:00
+imports:
+- name: github.com/armon/go-radix
+  version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
+- name: github.com/cespare/xxhash
+  version: 48099fad606eafc26e3a569fad19ff510fff4df6
+- name: github.com/dustin/randbo
+  version: 7f1b564ca7242d22bcc6e2128beb90d9fa38b9f0
+- name: github.com/golang/snappy
+  version: 2e65f85255dbc3072edf28d6b5b8efc472979f5a
+- name: github.com/OneOfOne/xxhash
+  version: 6def279d2ce6c81a79dd1c1be580f03bb216fb8a
+- name: github.com/syndtr/goleveldb
+  version: c4c61651e9e37fa117f53c5a906d3b63090d8445
+  subpackages:
+  - leveldb
+  - leveldb/cache
+  - leveldb/comparer
+  - leveldb/errors
+  - leveldb/filter
+  - leveldb/iterator
+  - leveldb/journal
+  - leveldb/memdb
+  - leveldb/opt
+  - leveldb/storage
+  - leveldb/table
+  - leveldb/util
+- name: github.com/visionmedia/go-debug
+  version: bfacf9d8a444b50f5d7ae47727544e775486966f
+- name: gopkg.in/yaml.v1
+  version: 9f9df34309c04878acc86042b16630b0f696e1de
+testImports: []
