@@ -12,7 +12,8 @@ import (
 	"log"
 	"net"
 	"strconv"
-	"sync"
+    "sync"
+    "sync/atomic"
 	"time"
 )
 
@@ -22,14 +23,13 @@ type RoomManager struct {
 	ln          *net.TCPListener
 	goingClose  chan bool
 	router      *Router.Router
-	rooms       map[string]*Room.Room
-	roomsLocker sync.Mutex
+    rooms       sync.Map
+    currentRoomCount uint32
 	db          *leveldb.DB
 }
 
 func (m *RoomManager) init() error {
 	m.goingClose = make(chan bool)
-	m.rooms = make(map[string]*Room.Room)
 	m.router = Router.MakeRouter("request")
 	m.router.Register("roomlist", m.handleRoomList)
 	m.router.Register("newroom", m.handleNewRoom)
@@ -45,22 +45,22 @@ func (m *RoomManager) init() error {
 		// handle error
 		return err
 	}
-	
+
 	for i := 0; ; i++ {
 		m.ln, err = net.ListenTCP("tcp", addr)
 		if err == nil {
 			break
 		}
-		
+
 		// Retry about 20 times.
 		if i >= 19 {
 			break
 		}
 		log.Println("RoomManager is cannot listen on port, sleep and retry...")
-		
+
 		// Each retry sleeps 5 seconds
-		time.Sleep(5 * time.Second)		
-	}	
+		time.Sleep(5 * time.Second)
+	}
 
 	if err != nil {
 		// handle error
@@ -97,9 +97,8 @@ func (m *RoomManager) recovery() error {
 		}
 		debugOut("Room recovered", string(value))
 
-		m.roomsLocker.Lock()
-		m.rooms[room.Options.Name] = room
-		m.roomsLocker.Unlock()
+		m.rooms.Store(room.Options.Name, room)
+        atomic.AddUint32(&m.currentRoomCount, 1)
 		go func(room *Room.Room, m *RoomManager) {
 			roomName := room.Options.Name
 			room.Run()
@@ -147,15 +146,12 @@ func (m *RoomManager) shortenRooms() {
 }
 
 func (m *RoomManager) waitRoomClosed(roomName string) {
-	m.roomsLocker.Lock()
-	defer m.roomsLocker.Unlock()
-	delete(m.rooms, roomName)
 	m.db.Delete([]byte("room-"+roomName), &opt.WriteOptions{})
+    m.rooms.Delete(roomName)
+    atomic.AddUint32(&m.currentRoomCount, ^uint32(0))
 }
 
 func (m *RoomManager) Close() {
-	m.roomsLocker.Lock()
-	defer m.roomsLocker.Unlock()
 	close(m.goingClose)
 	m.db.Close()
 	m.ln.Close()

@@ -1,5 +1,7 @@
 package RoomManager
 
+import "log"
+import "sync/atomic"
 import "encoding/json"
 import "server/pkg/Socket"
 import "server/pkg/Room"
@@ -9,25 +11,23 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	req := &RoomListRequest{}
 	json.Unmarshal(data, &req)
 	debugOut(req.Request)
-	m.roomsLocker.Lock()
-	var roomsCopy = map[string]*Room.Room{}
-	for k, v := range m.rooms {
-		roomsCopy[k] = v
-	}
-	m.roomsLocker.Unlock()
-	debugOut("room count", len(roomsCopy))
-	roomlist := make([]RoomPublicInfo, 0, len(roomsCopy))
-	for _, v := range roomsCopy {
-		room := RoomPublicInfo{
-			Name:          v.Options.Name,
-			CurrentLoad:   v.CurrentLoad(),
-			Private:       len(v.Options.Password) > 0,
-			MaxLoad:       v.Options.MaxLoad,
+	roomlist := make([]RoomPublicInfo, 0, atomic.LoadUint32(&m.currentRoomCount))
+    m.rooms.Range(func (key, value interface{}) bool {
+        roomInstance, ok := value.(*Room.Room)
+        if !ok {
+            log.Panicln("Read rooms from RoomManager failed: instance convertion failed")
+        }
+        room := RoomPublicInfo{
+			Name:          roomInstance.Options.Name,
+			CurrentLoad:   roomInstance.CurrentLoad(),
+			Private:       len(roomInstance.Options.Password) > 0,
+			MaxLoad:       roomInstance.Options.MaxLoad,
 			ServerAddress: "0.0.0.0",
-			Port:          v.Port(),
+			Port:          roomInstance.Port(),
 		}
-		roomlist = append(roomlist, room)
-	}
+        roomlist = append(roomlist, room)
+        return true
+    })
 	var resp = RoomListResponse{
 		"roomlist",
 		true,
@@ -36,7 +36,7 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	}
 	var raw, err = json.Marshal(resp)
 	if err != nil {
-		panic(err)
+		log.Panicln(err)
 	}
 	_, err = client.SendManagerPack(raw)
 	if err != nil {
@@ -83,10 +83,9 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	if err != nil {
 		panic(err)
 	}
-	m.roomsLocker.Lock()
-	m.rooms[room.Options.Name] = room
-	m.roomsLocker.Unlock()
-	go func(room *Room.Room, m *RoomManager) {
+    m.rooms.Store(room.Options.Name, room)
+    atomic.AddUint32(&m.currentRoomCount, 1)
+    go func(room *Room.Room, m *RoomManager) {
 		roomName := room.Options.Name
 		room.Run()
 		m.waitRoomClosed(roomName)

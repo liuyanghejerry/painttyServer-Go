@@ -1,4 +1,4 @@
 #!/bin/sh
 
 export GOPATH=`pwd`
-go run src/server/painttyServer.go
+go run -race src/server/painttyServer.go

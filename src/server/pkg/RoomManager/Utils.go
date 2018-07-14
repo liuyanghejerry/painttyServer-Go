@@ -1,9 +1,12 @@
 package RoomManager
 
-import "server/pkg/Room"
-import "encoding/json"
-import "server/pkg/ErrorCode"
-import "server/pkg/Config"
+import (
+    "encoding/json"
+    "sync/atomic"
+    "server/pkg/Room"
+    "server/pkg/ErrorCode"
+    "server/pkg/Config"
+)
 
 func parseRoomRuntimeInfo(data []byte) *Room.RoomRuntimeInfo {
 	info := &Room.RoomRuntimeInfo{}
@@ -28,9 +31,7 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 		return ErrorCode.NEW_ROOM_INVALID_NAME
 	}
 
-	m.roomsLocker.Lock()
-	defer m.roomsLocker.Unlock()
-	if _, ok := m.rooms[option.Name]; ok {
+	if _, ok := m.rooms.Load(option.Name); ok {
 		return ErrorCode.NEW_ROOM_NAME_COLLISSION
 	}
 
@@ -45,7 +46,7 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 	}
 
 	maxRoomCount := Config.GetConfig()["max_room_count"].(int)
-	if len(m.rooms) >= maxRoomCount {
+	if int(atomic.LoadUint32(&m.currentRoomCount)) >= maxRoomCount {
 		return ErrorCode.NEW_ROOM_TOO_MANY_ROOMS
 	}
 	return 0
