@@ -1,14 +1,14 @@
 package main
 
 import (
-	"server/pkg/RoomManager"
-	"server/pkg/Router"
-	"server/pkg/Socket"
 	"encoding/json"
 	"flag"
 	"log"
 	"net"
 	"os"
+	"server/pkg/RoomManager"
+	"server/pkg/Router"
+	"server/pkg/Socket"
 	"syscall"
 	"time"
 )
@@ -31,7 +31,7 @@ func startProc() *os.Process {
 	proc, err := os.StartProcess(painttyServer,
 		args,
 		&os.ProcAttr{
-			Dir: workingDir,
+			Dir:   workingDir,
 			Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
 			Sys:   &syscall.SysProcAttr{},
 		})
@@ -69,19 +69,23 @@ func loop(client *Socket.SocketClient) <-chan bool {
 
 	go func(client *Socket.SocketClient) {
 		for {
+			if client.IsClosed() {
+				return
+			}
 			select {
 			case <-time.After(time.Second * 10):
 				sendMessage(client)
-			case _, _ = <-client.GoingClose:
-				return
 			}
 		}
 	}(client)
 
 	go func(client *Socket.SocketClient, dead chan<- bool) {
 		for {
+			if client.IsClosed() {
+				return
+			}
 			select {
-			case pkg, ok := <-client.PackageChan:
+			case pkg, ok := <-client.GetPackageChan():
 				if !ok {
 					return
 				}
@@ -93,8 +97,6 @@ func loop(client *Socket.SocketClient) <-chan bool {
 				}
 			case <-time.After(time.Second * 30):
 				dead <- true
-			case _, _ = <-client.GoingClose:
-				return
 			}
 		}
 	}(client, seemsDead)

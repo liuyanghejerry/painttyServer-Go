@@ -1,11 +1,11 @@
 package Radio
 
 import (
-	"server/pkg/BufferedFile"
-	"server/pkg/Socket"
 	"encoding/hex"
 	xxhash "github.com/cespare/xxhash"
 	"github.com/dustin/randbo"
+	"server/pkg/BufferedFile"
+	"server/pkg/Socket"
 	"strconv"
 )
 

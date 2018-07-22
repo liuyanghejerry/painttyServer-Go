@@ -140,10 +140,11 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 
 func (r *Radio) processClient(client *Socket.SocketClient, radioClient *RadioClient) {
 	for {
-		select {
-		case _, _ = <-client.GoingClose:
+		if client.IsClosed() {
 			r.RemoveClient(client)
 			return
+		}
+		select {
 		case chunk, ok := <-radioClient.sendChan:
 			if ok {
 				debugOut("send chan happened")

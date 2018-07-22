@@ -2,8 +2,6 @@ package Room
 
 import (
 	//"Radio"
-	"server/pkg/Config"
-	"server/pkg/Socket"
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +9,8 @@ import (
 	xxhash "github.com/cespare/xxhash"
 	"github.com/dustin/randbo"
 	"io"
+	"server/pkg/Config"
+	"server/pkg/Socket"
 	//"log"
 	"strconv"
 	"time"
@@ -47,14 +47,23 @@ func dumpRoom(room *Room) []byte {
 }
 
 func (m *Room) findClientById(clientId string) *Socket.SocketClient {
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	for client, user := range m.clients {
-		if user.clientId == clientId {
-			return client
+	var result *Socket.SocketClient
+	m.clients.Range(func(key, value interface{}) bool {
+		client, ok := key.(*Socket.SocketClient)
+		if !ok {
+			return true
 		}
-	}
-	return nil
+		user, ok := value.(*RoomUser)
+		if !ok {
+			return true
+		}
+		if user.clientId == clientId {
+			result = client
+			return false
+		}
+		return true
+	})
+	return result
 }
 
 func (m *Room) broadcastCommand(resp interface{}) {
@@ -63,17 +72,23 @@ func (m *Room) broadcastCommand(resp interface{}) {
 		panic(err)
 	}
 
-	m.locker.Lock()
-	defer m.locker.Unlock()
-
-	for cli, usr := range m.clients {
-		if len(usr.clientId) > 0 {
-			_, err = cli.SendCommandPack(data)
+	m.clients.Range(func(key, value interface{}) bool {
+		client, ok := key.(*Socket.SocketClient)
+		if !ok {
+			return true
+		}
+		user, ok := value.(*RoomUser)
+		if !ok {
+			return true
+		}
+		if len(user.clientId) > 0 {
+			_, err = client.SendCommandPack(data)
 			if err != nil {
-				cli.Close()
+				client.Close()
 			}
 		}
-	}
+		return true
+	})
 }
 
 func (m *Room) sendAnnouncement(client *Socket.SocketClient) {

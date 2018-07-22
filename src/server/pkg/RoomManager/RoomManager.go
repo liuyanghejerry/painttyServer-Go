@@ -1,31 +1,31 @@
 package RoomManager
 
 import (
-	"server/pkg/Config"
-	"server/pkg/Room"
-	"server/pkg/Router"
-	"server/pkg/Socket"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
 	cDebug "github.com/visionmedia/go-debug"
 	"log"
 	"net"
+	"server/pkg/Config"
+	"server/pkg/Room"
+	"server/pkg/Router"
+	"server/pkg/Socket"
 	"strconv"
-    "sync"
-    "sync/atomic"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
 var debugOut = cDebug.Debug("RoomManager")
 
 type RoomManager struct {
-	ln          *net.TCPListener
-	goingClose  chan bool
-	router      *Router.Router
-    rooms       sync.Map
-    currentRoomCount uint32
-	db          *leveldb.DB
+	ln               *net.TCPListener
+	goingClose       chan bool
+	router           *Router.Router
+	rooms            sync.Map
+	currentRoomCount uint32
+	db               *leveldb.DB
 }
 
 func (m *RoomManager) init() error {
@@ -98,7 +98,7 @@ func (m *RoomManager) recovery() error {
 		debugOut("Room recovered", string(value))
 
 		m.rooms.Store(room.Options.Name, room)
-        atomic.AddUint32(&m.currentRoomCount, 1)
+		atomic.AddUint32(&m.currentRoomCount, 1)
 		go func(room *Room.Room, m *RoomManager) {
 			roomName := room.Options.Name
 			room.Run()
@@ -147,8 +147,8 @@ func (m *RoomManager) shortenRooms() {
 
 func (m *RoomManager) waitRoomClosed(roomName string) {
 	m.db.Delete([]byte("room-"+roomName), &opt.WriteOptions{})
-    m.rooms.Delete(roomName)
-    atomic.AddUint32(&m.currentRoomCount, ^uint32(0))
+	m.rooms.Delete(roomName)
+	atomic.AddUint32(&m.currentRoomCount, ^uint32(0))
 }
 
 func (m *RoomManager) Close() {
@@ -172,33 +172,29 @@ func (m *RoomManager) Run() (err error) {
 				// handle error
 				continue
 			}
-			m.processClient(Socket.MakeSocketClient(conn))
+			go m.processClient(Socket.MakeSocketClient(conn))
 		}
 	}
 	return err
 }
 
 func (m *RoomManager) processClient(client *Socket.SocketClient) {
-	go func() {
-		for {
-			select {
-			case _, _ = <-m.goingClose:
-				return
-			case pkg, ok := <-client.PackageChan:
-				if !ok {
-					return
-				}
-				if pkg.PackageType == Socket.MANAGER {
-					err := m.router.OnMessage(pkg.Unpacked, client)
-					if err != nil {
-						client.Close()
-					}
-				}
-			case _, _ = <-client.GoingClose:
+	for {
+		select {
+		case _, _ = <-m.goingClose:
+			return
+		case pkg, ok := <-client.GetPackageChan():
+			if !ok {
 				return
 			}
+			if pkg.PackageType == Socket.MANAGER {
+				err := m.router.OnMessage(pkg.Unpacked, client)
+				if err != nil {
+					client.Close()
+				}
+			}
 		}
-	}()
+	}
 }
 
 func ServeManager() *RoomManager {

@@ -12,12 +12,12 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	json.Unmarshal(data, &req)
 	debugOut(req.Request)
 	roomlist := make([]RoomPublicInfo, 0, atomic.LoadUint32(&m.currentRoomCount))
-    m.rooms.Range(func (key, value interface{}) bool {
-        roomInstance, ok := value.(*Room.Room)
-        if !ok {
-            log.Panicln("Read rooms from RoomManager failed: instance convertion failed")
-        }
-        room := RoomPublicInfo{
+	m.rooms.Range(func(key, value interface{}) bool {
+		roomInstance, ok := value.(*Room.Room)
+		if !ok {
+			log.Panicln("Read rooms from RoomManager failed: instance convertion failed")
+		}
+		room := RoomPublicInfo{
 			Name:          roomInstance.Options.Name,
 			CurrentLoad:   roomInstance.CurrentLoad(),
 			Private:       len(roomInstance.Options.Password) > 0,
@@ -25,9 +25,9 @@ func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 			ServerAddress: "0.0.0.0",
 			Port:          roomInstance.Port(),
 		}
-        roomlist = append(roomlist, room)
-        return true
-    })
+		roomlist = append(roomlist, room)
+		return true
+	})
 	var resp = RoomListResponse{
 		"roomlist",
 		true,
@@ -83,9 +83,9 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 	if err != nil {
 		panic(err)
 	}
-    m.rooms.Store(room.Options.Name, room)
-    atomic.AddUint32(&m.currentRoomCount, 1)
-    go func(room *Room.Room, m *RoomManager) {
+	m.rooms.Store(room.Options.Name, room)
+	atomic.AddUint32(&m.currentRoomCount, 1)
+	go func(room *Room.Room, m *RoomManager) {
 		roomName := room.Options.Name
 		room.Run()
 		m.waitRoomClosed(roomName)

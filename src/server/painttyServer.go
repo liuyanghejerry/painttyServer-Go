@@ -1,10 +1,10 @@
 package main
 
 import (
-	"server/pkg/Config"
-	"server/pkg/RoomManager"
 	"log"
 	"runtime"
+	"server/pkg/Config"
+	"server/pkg/RoomManager"
 	"time"
 )
 

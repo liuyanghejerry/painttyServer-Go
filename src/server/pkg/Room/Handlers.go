@@ -1,10 +1,10 @@
 package Room
 
 import (
+	"encoding/json"
 	"server/pkg/ErrorCode"
 	"server/pkg/Radio"
 	"server/pkg/Socket"
-	"encoding/json"
 	"time"
 )
 
@@ -80,7 +80,23 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 		return
 	}
 
+	value, ok := m.clients.Load(client)
+	if !ok {
+		resp.ErrCode = ErrorCode.LOGIN_UNKOWN
+		directSendCommand(resp, client)
+		return
+	}
 	clientId := m.genClientId()
+	user, ok := value.(*RoomUser)
+	if ok {
+		user.clientId = clientId
+		user.nickName = req.Name
+		m.sendAnnouncement(client)
+		m.sendExpirationMsg(client)
+		m.sendWelcomeMsg(client)
+	} else {
+		panic("handleJoin found unclean client")
+	}
 
 	resp = JoinRoomResponse{
 		"login",
@@ -97,18 +113,6 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 		0,
 	}
 	directSendCommand(resp, client)
-
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	if user, ok := m.clients[client]; ok {
-		user.clientId = clientId
-		user.nickName = req.Name
-		m.sendAnnouncement(client)
-		m.sendExpirationMsg(client)
-		m.sendWelcomeMsg(client)
-	} else {
-		panic("handleJoin found unclean client")
-	}
 }
 
 func (m *Room) handleHeartbeat(data []byte, client *Socket.SocketClient) {

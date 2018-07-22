@@ -1,20 +1,21 @@
 package Room
 
 import (
-	"server/pkg/Config"
-	"server/pkg/Radio"
-	"server/pkg/Router"
-	"server/pkg/Socket"
+	"errors"
 	cDebug "github.com/visionmedia/go-debug"
 	"log"
 	"net"
 	"os"
 	"path"
 	"path/filepath"
+	"server/pkg/Config"
+	"server/pkg/Radio"
+	"server/pkg/Router"
+	"server/pkg/Socket"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
-	"errors"
 )
 
 var debugOut = cDebug.Debug("Room")
@@ -35,24 +36,22 @@ type RoomUser struct {
 }
 
 type Room struct {
-	ln          *net.TCPListener
-	GoingClose  chan bool
-	router      *Router.Router
-	radio       *Radio.Radio
-	clients     map[*Socket.SocketClient]*RoomUser
-	expiration  int
-	key         string
-	archiveSign string
-	port        uint16
-	Options     RoomOption
-	lastCheck   time.Time
-	locker      *sync.Mutex
+	ln                  *net.TCPListener
+	GoingClose          chan bool
+	router              *Router.Router
+	radio               *Radio.Radio
+	clients             sync.Map
+	currentClientsCount uint32
+	expiration          int
+	key                 string
+	archiveSign         string
+	port                uint16
+	Options             RoomOption
+	lastCheck           time.Time
 }
 
 func (m *Room) Close() {
 	debugOut("would like to close Room")
-	m.locker.Lock()
-	defer m.locker.Unlock()
 	close(m.GoingClose)
 	debugOut("room channel closed")
 	m.radio.Close()
@@ -64,7 +63,6 @@ func (m *Room) Close() {
 }
 
 func (m *Room) init() (err error) {
-	m.clients = make(map[*Socket.SocketClient]*RoomUser)
 	m.GoingClose = make(chan bool)
 	m.router = Router.MakeRouter("request")
 
@@ -150,20 +148,21 @@ func (m *Room) Password() string {
 }
 
 func (m *Room) CurrentLoad() int {
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	return len(m.clients)
+	return int(atomic.LoadUint32(&m.currentClientsCount))
 }
 
 func (m *Room) OnlineList() (list []OnlineListItem) {
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	for _, user := range m.clients {
+	m.clients.Range(func(key, value interface{}) bool {
+		user, ok := value.(*RoomUser)
+		if !ok {
+			return true
+		}
 		list = append(list, OnlineListItem{
 			Name:     user.nickName,
 			ClientId: user.clientId,
 		})
-	}
+		return true
+	})
 	return list
 }
 
@@ -172,19 +171,26 @@ func (m *Room) Dump() []byte {
 }
 
 func (m *Room) hasUser(u *Socket.SocketClient) bool {
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	if user, ok := m.clients[u]; ok && len(user.clientId) > 0 {
+	value, ok := m.clients.Load(u)
+	if !ok {
+		return false
+	}
+	user, ok := value.(*RoomUser)
+
+	if !ok {
+		return false
+	}
+
+	if len(user.clientId) > 0 {
 		return true
 	}
+
 	return false
 }
 
 func (m *Room) processEmptyClose() {
-	m.locker.Lock()
-	clientLen := len(m.clients)
-	m.locker.Unlock()
-	if clientLen <= 0 && m.Options.EmptyClose {
+	clientLen := atomic.LoadUint32(&m.currentClientsCount)
+	if clientLen == 0 && m.Options.EmptyClose {
 		m.Close()
 	}
 }
@@ -196,7 +202,8 @@ func (m *Room) processExpire() {
 			return
 		case <-time.After(time.Hour):
 			if time.Since(m.lastCheck) > time.Hour*time.Duration(m.expiration) {
-				if len(m.clients) <= 0 {
+				clientLen := atomic.LoadUint32(&m.currentClientsCount)
+				if clientLen == 0 {
 					m.Close()
 				} else {
 					m.Options.EmptyClose = true
@@ -221,30 +228,32 @@ func (m *Room) Run() error {
 				continue
 			}
 			var client = Socket.MakeSocketClient(conn)
-			m.locker.Lock()
-			m.clients[client] = &RoomUser{}
-			m.locker.Unlock()
+			m.clients.Store(client, &RoomUser{})
+			atomic.AddUint32(&m.currentClientsCount, 1)
 			m.processClient(client)
 		}
 	}
-	return nil
 }
 
 func (m *Room) processClient(client *Socket.SocketClient) {
 	go func() {
 		for {
+			if client.IsClosed() {
+				m.removeClient(client)
+				m.processEmptyClose()
+				return
+			}
 			select {
 			case _, _ = <-m.GoingClose:
 				debugOut("Room is going go close")
 				m.removeAllClient()
 				return
-			case pkg, ok := <-client.PackageChan:
+			case pkg, ok := <-client.GetPackageChan():
 				if !ok {
 					m.removeClient(client)
 					m.processEmptyClose()
 					return
 				}
-				//go func() {
 				switch pkg.PackageType {
 				case Socket.COMMAND:
 					err := m.router.OnMessage(pkg.Unpacked, client)
@@ -274,11 +283,6 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						debugOut("SendChan failed in processClient")
 					}
 				}
-				//}()
-			case _, _ = <-client.GoingClose:
-				m.removeClient(client)
-				m.processEmptyClose()
-				return
 			case <-time.After(time.Second * 10):
 				debugOut("processClient blocked detected")
 				m.kickClient(client)
@@ -290,23 +294,20 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 
 func (m *Room) removeClient(client *Socket.SocketClient) {
 	debugOut("would like to remove client from room")
-	m.locker.Lock()
-	defer m.locker.Unlock()
-	delete(m.clients, client)
+	m.clients.Delete(client)
+	atomic.AddUint32(&m.currentClientsCount, ^uint32(0))
 	m.radio.RemoveClient(client)
 	debugOut("client removed from room")
 }
 
 func (m *Room) removeAllClient() {
 	debugOut("would like to remove all clients from room")
-	m.locker.Lock()
-	defer m.locker.Unlock()
 	m.removeAllClient_internal()
 }
 
 func (m *Room) removeAllClient_internal() {
 	debugOut("would like to remove all clients from room")
-	m.clients = make(map[*Socket.SocketClient]*RoomUser)
+	m.clients = sync.Map{}
 	m.radio.RemoveAllClients()
 	debugOut("all clients removed from room")
 }
@@ -321,7 +322,6 @@ func ServeRoom(opt RoomOption) (*Room, error) {
 		Options:    opt,
 		expiration: Config.GetConfig()["expiration"].(int),
 		lastCheck:  time.Now(),
-		locker:     &sync.Mutex{},
 	}
 	if err := room.init(); err != nil {
 		return &Room{}, err
@@ -338,13 +338,12 @@ func RecoverRoom(info *RoomRuntimeInfo) (r *Room, err error) {
 		key:         info.Key,
 		Options:     info.Options,
 		lastCheck:   time.Now(),
-		locker:      &sync.Mutex{},
 	}
 	if err := room.init(); err != nil {
 		return &Room{}, err
 	}
-	
-	defer func ()  {
+
+	defer func() {
 		if err := recover(); err != nil {
 			log.Println("room recover encountered panic", info.Options.Name, err)
 			r = nil

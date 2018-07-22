@@ -23,6 +23,10 @@ func NewSocketReader() SocketReader {
 	return reader
 }
 
+func (r *SocketReader) GetPackageChan() <-chan Package {
+	return r.PackageChan
+}
+
 func (r *SocketReader) OnData(chunk []byte) (err error) {
 	err = nil
 	r.buffer = append(r.buffer, chunk...)

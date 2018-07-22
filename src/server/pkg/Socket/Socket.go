@@ -4,26 +4,28 @@ import "net"
 import "time"
 import cDebug "github.com/visionmedia/go-debug"
 import "sync"
+import "sync/atomic"
 
 var debugOut = cDebug.Debug("Socket")
 
 type SocketClient struct {
-	PackageChan chan Package
+	readLock    sync.Mutex
+	writeLock   sync.Mutex
 	con         *net.TCPConn
-	GoingClose  chan bool
-	rawChan     chan []byte
-	closed      sync.Once
+	closeFlag   sync.Once
+	closed      int32
+	packageChan chan Package
 }
 
-// TODO: due with error
+func (c *SocketClient) GetPackageChan() <-chan Package {
+	return c.packageChan
+}
+
 func (c *SocketClient) WriteRaw(data []byte) (int, error) {
-	defer func() {
-		if err := recover(); err != nil {
-			c.Close()
-		}
-	}()
-	c.rawChan <- data
-	return len(data), nil
+	c.writeLock.Lock()
+	defer c.writeLock.Unlock()
+	// c.con.SetWriteDeadline(<-time.After(60 * time.Second))
+	return c.con.Write(data)
 }
 
 func (c *SocketClient) sendPack(data []byte) (int, error) {
@@ -87,94 +89,59 @@ func AssamblePack(header PackHeader, data []byte) []byte {
 }
 
 func (c *SocketClient) Close() {
-	defer func() { recover() }()
-	c.closed.Do(func() {
-		close(c.GoingClose)
-		close(c.PackageChan)
-		close(c.rawChan)
+	c.closeFlag.Do(func() {
 		c.con.Close()
-		debugOut("client closed")
+		atomic.StoreInt32(&c.closed, 1)
+		close(c.packageChan)
 	})
 }
 
-func writeLoop(client *SocketClient, con *net.TCPConn) {
-	for {
-		select {
-		case _, _ = <-client.GoingClose:
-			return
-		case data, ok := <-client.rawChan:
-			if !ok {
-				debugOut("client rawChan already closed")
-				client.Close()
-				return
-			}
-			//client.con.SetWriteDeadline(time.Now().Add(20 * time.Second))
-			_, err := client.con.Write(data)
-			if err != nil {
-				debugOut("cannot make write on client")
-				client.Close()
-				return
-			}
-			debugOut("wrote succeed")
-		case <-time.After(60 * time.Second):
-			debugOut("client write timeout")
-			client.Close()
-		}
-	}
+func (c *SocketClient) IsClosed() bool {
+	return atomic.LoadInt32(&c.closed) == 1
 }
 
-func readLoop(client *SocketClient, con *net.TCPConn, reader *SocketReader) {
-	for {
-		select {
-		case _, _ = <-client.GoingClose:
-			return
-		default:
-			var buffer []byte = make([]byte, 128)
-			outBytes, err := con.Read(buffer)
-			//con.SetReadDeadline(time.Now().Add(20 * time.Second))
-			if err != nil {
-				client.Close()
+func (c *SocketClient) RunReadLoop(reader *SocketReader) {
+	go func() {
+		for {
+			pkg, ok := <-reader.PackageChan
+			if !ok {
 				return
 			}
-			if outBytes == 0 {
-				time.Sleep(1 * time.Second)
-			} else {
-				err = reader.OnData(buffer[0:outBytes])
-				if err != nil {
-					debugOut("broken data encountered, socket will be closed")
-					client.Close()
-					return
-				}
-			}
-		}
-
-	}
-}
-
-func pubLoop(client *SocketClient, reader *SocketReader) {
-	defer func() { recover() }()
-	for {
-		select {
-		case _, _ = <-client.GoingClose:
-			return
-		case pkg, ok := <-reader.PackageChan:
-			if !ok {
+			if c.IsClosed() {
 				return
 			}
 			// pipe Package into public scope
-			client.PackageChan <- pkg
+			c.packageChan <- pkg
+		}
+	}()
+	for {
+		buffer := make([]byte, 128)
+		c.readLock.Lock()
+		// c.con.SetReadDeadline(<-time.After(60 * time.Second))
+		outBytes, err := c.con.Read(buffer)
+		c.readLock.Unlock()
+		if err != nil {
+			c.Close()
+			break
+		}
+		if outBytes == 0 {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		err = reader.OnData(buffer[0:outBytes])
+		if err != nil {
+			debugOut("socket is closed")
+			c.Close()
+			break
 		}
 	}
 }
 
 func MakeSocketClient(con *net.TCPConn) *SocketClient {
-	//con.SetReadDeadline(time.Now().Add(20 * time.Second))
 	client := SocketClient{
-		PackageChan: make(chan Package),
 		con:         con,
-		GoingClose:  make(chan bool),
-		rawChan:     make(chan []byte, 40), // 40 arrays for each client
-		closed:      sync.Once{},
+		closeFlag:   sync.Once{},
+		packageChan: make(chan Package),
 	}
 	reader := NewSocketReader()
 
@@ -182,9 +149,6 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	con.SetNoDelay(true)
 	con.SetLinger(10)
 
-	go writeLoop(&client, con)
-	go readLoop(&client, con, &reader)
-
-	go pubLoop(&client, &reader)
+	go client.RunReadLoop(&reader)
 	return &client
 }

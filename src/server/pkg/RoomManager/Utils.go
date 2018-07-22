@@ -1,11 +1,11 @@
 package RoomManager
 
 import (
-    "encoding/json"
-    "sync/atomic"
-    "server/pkg/Room"
-    "server/pkg/ErrorCode"
-    "server/pkg/Config"
+	"encoding/json"
+	"server/pkg/Config"
+	"server/pkg/ErrorCode"
+	"server/pkg/Room"
+	"sync/atomic"
 )
 
 func parseRoomRuntimeInfo(data []byte) *Room.RoomRuntimeInfo {
