@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	xxhash "github.com/cespare/xxhash"
 	"github.com/dustin/randbo"
+	"log"
 	"server/pkg/BufferedFile"
 	"server/pkg/Socket"
 	"strconv"
@@ -85,7 +86,6 @@ func pushRamChunk(chunk RAMChunk, queue *RadioTaskList) {
 func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 	list.locker.Lock()
 	defer list.locker.Unlock()
-	debugOut("appended", chunk)
 	switch chunk.(type) {
 	case RAMChunk:
 		pushRamChunk(chunk.(RAMChunk), list)
@@ -119,17 +119,15 @@ func appendToPendings(chunk RadioChunk, list *RadioTaskList) {
 
 	if list.Length() >= MAX_CHUNKS_IN_QUEUE*2 {
 		// TODO: add another function to re-split chunks in queue
-		debugOut("There're ", list.Length(), "chunks in a single queue!")
+		log.Println("There're ", list.Length(), "chunks in a single queue!")
 	}
 }
 
-func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *BufferedFile.BufferedFile) {
-	//debugOut("fetchAndSend", list.Tasks())
-	//debugOut("tasks fetchAndSend", list.tasks, len(tasks))
+func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *BufferedFile.BufferedFile) error {
 	list.locker.Lock()
 	defer list.locker.Unlock()
 	if list.Length() <= 0 {
-		return
+		return nil
 	}
 
 	var item = list.PopFront()
@@ -139,18 +137,18 @@ func fetchAndSend(client *Socket.SocketClient, list *RadioTaskList, file *Buffer
 		var item = item.(FileChunk)
 		var buf = make([]byte, item.Length)
 		length, err := file.ReadAt(buf, item.Start)
-		//debugOut("fetched length", length)
 		if int64(length) != item.Length || err != nil {
 			// move back
 			list.PushFront(item)
-			return
+			return nil
 		}
-		debugOut("write to client", len(buf))
-		go client.WriteRaw(buf)
+		_, err = client.WriteRaw(buf)
+		return err
 	case RAMChunk:
-		debugOut("write ram chunk to client", len(item.(RAMChunk).Data))
-		go client.WriteRaw(item.(RAMChunk).Data)
+		_, err := client.WriteRaw(item.(RAMChunk).Data)
+		return err
 	}
+	return nil
 }
 
 func genArchiveSign(name string) string {

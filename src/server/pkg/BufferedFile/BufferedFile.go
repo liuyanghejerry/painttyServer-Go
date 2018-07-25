@@ -4,14 +4,11 @@ package BufferedFile
 
 import (
 	"errors"
-	cDebug "github.com/visionmedia/go-debug"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 )
-
-var debugOut = cDebug.Debug("BufferedFile")
 
 type BufferedFileOption struct {
 	FileName   string
@@ -179,21 +176,17 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 	var length = int64(len(data))
 	var mark = atomic.LoadInt64(&f.waterMark)
 	var err error = nil
-	debugOut("fileSize: %d, waterMark: %d, whileSize: %d, readOff: %d, readLen: %d",
-		fileSize, mark, f.wholeSize, off, length)
 	if off+length > fileSize+mark {
 		return 0, errors.New("Cannot read so much")
 	}
 	// all in file
 	if off+length <= fileSize && fileSize != 0 {
-		debugOut("all in file")
 		l, e := f.file.ReadAt(data, off)
 		return int64(l), e
 	}
 
 	// all in buffer
 	if off > fileSize {
-		debugOut("all in buffer")
 		start := off - fileSize
 		num := copy(data, f.buffer[start:start+length])
 		return int64(num), nil
@@ -201,7 +194,6 @@ func (f *BufferedFile) ReadAt(data []byte, off int64) (int64, error) {
 
 	// half in buffer, and the other half in file
 	// read file first
-	debugOut("half, half")
 	var file_buf = make([]byte, fileSize-off)
 	_, err = f.file.ReadAt(file_buf, off)
 	// copy bytes in buffer then

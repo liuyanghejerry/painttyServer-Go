@@ -68,11 +68,15 @@ func loop(client *Socket.SocketClient) <-chan bool {
 	seemsDead := make(chan bool)
 
 	go func(client *Socket.SocketClient) {
+		clientCloseChan := make(chan bool)
+		client.RegisterCloseCallback(func() {
+			clientCloseChan <- true
+		})
 		for {
-			if client.IsClosed() {
-				return
-			}
 			select {
+			case _, _ = <-clientCloseChan:
+				close(clientCloseChan)
+				return
 			case <-time.After(time.Second * 10):
 				sendMessage(client)
 			}
@@ -81,9 +85,6 @@ func loop(client *Socket.SocketClient) <-chan bool {
 
 	go func(client *Socket.SocketClient, dead chan<- bool) {
 		for {
-			if client.IsClosed() {
-				return
-			}
 			select {
 			case pkg, ok := <-client.GetPackageChan():
 				if !ok {

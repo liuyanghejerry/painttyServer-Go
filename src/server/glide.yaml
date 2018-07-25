@@ -3,6 +3,6 @@ import:
 - package: github.com/cespare/xxhash
 - package: github.com/armon/go-radix
 - package: gopkg.in/yaml.v1
-- package: github.com/visionmedia/go-debug
 - package: github.com/dustin/randbo
 - package: github.com/syndtr/goleveldb
+- package: github.com/golang/snappy

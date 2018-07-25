@@ -4,7 +4,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	dbutil "github.com/syndtr/goleveldb/leveldb/util"
-	cDebug "github.com/visionmedia/go-debug"
 	"log"
 	"net"
 	"server/pkg/Config"
@@ -16,8 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 )
-
-var debugOut = cDebug.Debug("RoomManager")
 
 type RoomManager struct {
 	ln               *net.TCPListener
@@ -94,8 +91,7 @@ func (m *RoomManager) recovery() error {
 		if err != nil {
 			log.Println("room is corrupted", iter.Key())
 			continue
-		}
-		debugOut("Room recovered", string(value))
+        }
 
 		m.rooms.Store(room.Options.Name, room)
 		atomic.AddUint32(&m.currentRoomCount, 1)

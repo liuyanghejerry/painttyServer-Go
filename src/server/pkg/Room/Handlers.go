@@ -2,6 +2,7 @@ package Room
 
 import (
 	"encoding/json"
+	"log"
 	"server/pkg/ErrorCode"
 	"server/pkg/Radio"
 	"server/pkg/Socket"
@@ -91,17 +92,20 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 	if ok {
 		user.clientId = clientId
 		user.nickName = req.Name
-		m.sendAnnouncement(client)
-		m.sendExpirationMsg(client)
-		m.sendWelcomeMsg(client)
+		go func() {
+			<-time.After(time.Second)
+			m.sendAnnouncement(client)
+			m.sendExpirationMsg(client)
+			m.sendWelcomeMsg(client)
+		}()
 	} else {
 		panic("handleJoin found unclean client")
 	}
 
 	resp = JoinRoomResponse{
-		"login",
-		true,
-		JoinRoomInfo{
+		Response: "login",
+		Result:   true,
+		RoomList: JoinRoomInfo{
 			Name:        m.Options.Name,
 			HistorySize: m.radio.FileSize(),
 			Size: SizeInfo{
@@ -110,7 +114,7 @@ func (m *Room) handleJoin(data []byte, client *Socket.SocketClient) {
 			},
 			ClientId: clientId,
 		},
-		0,
+		ErrCode: 0,
 	}
 	directSendCommand(resp, client)
 }
@@ -179,7 +183,6 @@ func (m *Room) handleArchive(data []byte, client *Socket.SocketClient) {
 	directSendCommand(resp, client)
 
 	if resp.Result {
-		debugOut("startPos", startPos, "dataLength", dataLength)
 		m.radio.AddClient(client, startPos, dataLength)
 	}
 }
@@ -195,8 +198,6 @@ func (m *Room) handleClearAll(data []byte, client *Socket.SocketClient) {
 		Response: "clearall",
 		Result:   false,
 	}
-
-	debugOut("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
 		m.sendCommandTo(resp, client)
@@ -228,8 +229,6 @@ func (m *Room) handleCheckout(data []byte, client *Socket.SocketClient) {
 		Errcode:  ErrorCode.CHECKOUT_UNKNOWN,
 	}
 
-	debugOut("request key", req.Key, "room key", m.Key())
-
 	if req.Key != m.Key() {
 		resp.Errcode = ErrorCode.CHECKOUT_KEY_INCORRECT
 		m.sendCommandTo(resp, client)
@@ -260,8 +259,6 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 		Result:   false,
 	}
 
-	debugOut("request key", req.Key, "room key", m.Key())
-
 	if req.Key != m.Key() {
 		m.sendCommandTo(resp, client)
 		return
@@ -277,7 +274,7 @@ func (m *Room) handleKick(data []byte, client *Socket.SocketClient) {
 		m.sendCommandTo(action, cli)
 		m.kickClient(cli)
 	} else {
-		debugOut("Cannot find target client to kick:", target)
+		log.Println("Cannot find target client to kick:", target)
 	}
 
 	resp.Result = true
@@ -295,8 +292,6 @@ func (m *Room) handleClose(data []byte, client *Socket.SocketClient) {
 		Response: "close",
 		Result:   false,
 	}
-
-	debugOut("request key", req.Key, "room key", m.Key())
 
 	if req.Key != m.Key() {
 		m.sendCommandTo(resp, client)

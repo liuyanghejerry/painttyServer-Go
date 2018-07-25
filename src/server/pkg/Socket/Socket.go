@@ -2,19 +2,25 @@ package Socket
 
 import "net"
 import "time"
-import cDebug "github.com/visionmedia/go-debug"
+import "log"
 import "sync"
-import "sync/atomic"
 
-var debugOut = cDebug.Debug("Socket")
+type SocketCloseCallback func()
 
 type SocketClient struct {
-	readLock    sync.Mutex
-	writeLock   sync.Mutex
-	con         *net.TCPConn
-	closeFlag   sync.Once
-	closed      int32
-	packageChan chan Package
+	readLock              sync.Mutex
+	writeLock             sync.Mutex
+	con                   *net.TCPConn
+	closeFlag             sync.Once
+	packageChan           chan Package
+	closeCallbackList     []SocketCloseCallback
+	closeCallbackListLock sync.Mutex
+}
+
+func (c *SocketClient) RegisterCloseCallback(callback SocketCloseCallback) {
+	c.closeCallbackListLock.Lock()
+	defer c.closeCallbackListLock.Unlock()
+	c.closeCallbackList = append(c.closeCallbackList, callback)
 }
 
 func (c *SocketClient) GetPackageChan() <-chan Package {
@@ -65,6 +71,7 @@ func (c *SocketClient) SendCommandPack(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	log.Println("SendCommandPack")
 	return c.sendPack(result)
 }
 
@@ -91,23 +98,24 @@ func AssamblePack(header PackHeader, data []byte) []byte {
 func (c *SocketClient) Close() {
 	c.closeFlag.Do(func() {
 		c.con.Close()
-		atomic.StoreInt32(&c.closed, 1)
 		close(c.packageChan)
+		c.closeCallbackListLock.Lock()
+		defer c.closeCallbackListLock.Unlock()
+		for i := 0; i < len(c.closeCallbackList); i++ {
+			c.closeCallbackList[i]()
+		}
+		c.closeCallbackList = make([]SocketCloseCallback, 0)
 	})
-}
-
-func (c *SocketClient) IsClosed() bool {
-	return atomic.LoadInt32(&c.closed) == 1
 }
 
 func (c *SocketClient) RunReadLoop(reader *SocketReader) {
 	go func() {
+		defer func() {
+			_ = recover()
+		}()
 		for {
 			pkg, ok := <-reader.PackageChan
 			if !ok {
-				return
-			}
-			if c.IsClosed() {
 				return
 			}
 			// pipe Package into public scope
@@ -130,7 +138,6 @@ func (c *SocketClient) RunReadLoop(reader *SocketReader) {
 		}
 		err = reader.OnData(buffer[0:outBytes])
 		if err != nil {
-			debugOut("socket is closed")
 			c.Close()
 			break
 		}

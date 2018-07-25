@@ -2,7 +2,6 @@ package Room
 
 import (
 	"errors"
-	cDebug "github.com/visionmedia/go-debug"
 	"log"
 	"net"
 	"os"
@@ -17,8 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 )
-
-var debugOut = cDebug.Debug("Room")
 
 type RoomOption struct {
 	MaxLoad    int
@@ -51,15 +48,10 @@ type Room struct {
 }
 
 func (m *Room) Close() {
-	debugOut("would like to close Room")
 	close(m.GoingClose)
-	debugOut("room channel closed")
 	m.radio.Close()
-	debugOut("room radio closed")
 	m.radio.Remove()
-	debugOut("room radio removed")
 	m.ln.Close()
-	debugOut("room connection closed")
 }
 
 func (m *Room) init() (err error) {
@@ -81,7 +73,6 @@ func (m *Room) init() (err error) {
 		var source = append([]byte(m.Options.Name),
 			[]byte(m.Options.Password)...)
 		m.key = genSignedKey(source)
-		debugOut("key", m.key)
 
 		addr, err = net.ResolveTCPAddr("tcp", ":0")
 		if err != nil {
@@ -99,7 +90,7 @@ func (m *Room) init() (err error) {
 	data_path := filepath.Join(data_dir, m.archiveSign+".data")
 
 	if os.MkdirAll(path.Join(data_dir), 0666) != nil {
-		debugOut("Cannot make dir", path.Join(data_dir))
+		log.Println("Cannot make dir", path.Join(data_dir))
 		panic(err)
 	}
 
@@ -214,7 +205,6 @@ func (m *Room) processExpire() {
 }
 
 func (m *Room) Run() error {
-	debugOut("Room ", m.Options.Name, " is running")
 	go m.processExpire()
 	for {
 		select {
@@ -224,7 +214,7 @@ func (m *Room) Run() error {
 			conn, err := m.ln.AcceptTCP()
 			if err != nil {
 				// TODO: handle error
-				//panic(err)
+				log.Println(err)
 				continue
 			}
 			var client = Socket.MakeSocketClient(conn)
@@ -238,14 +228,8 @@ func (m *Room) Run() error {
 func (m *Room) processClient(client *Socket.SocketClient) {
 	go func() {
 		for {
-			if client.IsClosed() {
-				m.removeClient(client)
-				m.processEmptyClose()
-				return
-			}
 			select {
 			case _, _ = <-m.GoingClose:
-				debugOut("Room is going go close")
 				m.removeAllClient()
 				return
 			case pkg, ok := <-client.GetPackageChan():
@@ -269,7 +253,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						Data: pkg.Repacked,
 					}:
 					case <-time.After(time.Second * 5):
-						debugOut("WriteChan failed in processClient")
+						log.Println("WriteChan failed in processClient")
 					}
 				case Socket.MESSAGE:
 					if !m.hasUser(client) {
@@ -280,11 +264,10 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						Data: pkg.Repacked,
 					}:
 					case <-time.After(time.Second * 5):
-						debugOut("SendChan failed in processClient")
+						log.Println("SendChan failed in processClient")
 					}
 				}
 			case <-time.After(time.Second * 10):
-				debugOut("processClient blocked detected")
 				m.kickClient(client)
 				return
 			}
@@ -293,23 +276,18 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 }
 
 func (m *Room) removeClient(client *Socket.SocketClient) {
-	debugOut("would like to remove client from room")
 	m.clients.Delete(client)
 	atomic.AddUint32(&m.currentClientsCount, ^uint32(0))
 	m.radio.RemoveClient(client)
-	debugOut("client removed from room")
 }
 
 func (m *Room) removeAllClient() {
-	debugOut("would like to remove all clients from room")
 	m.removeAllClient_internal()
 }
 
 func (m *Room) removeAllClient_internal() {
-	debugOut("would like to remove all clients from room")
 	m.clients = sync.Map{}
 	m.radio.RemoveAllClients()
-	debugOut("all clients removed from room")
 }
 
 func (m *Room) kickClient(target *Socket.SocketClient) {
