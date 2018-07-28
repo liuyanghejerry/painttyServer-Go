@@ -1,5 +1,5 @@
-hash: 26dfba3bac4cee5a7e8c3d05ec6578f3e96bb7521e7e9755f41f220d0f13a78a
-updated: 2018-07-25T23:02:19.4127938+08:00
+hash: 86d36a84d0000d12a28e999f36b097837807753406901eb901379ff34562d9da
+updated: 2018-07-27T22:21:04.9630653+08:00
 imports:
 - name: github.com/armon/go-radix
   version: 1fca145dffbcaa8fe914309b1ec0cfc67500fe61
@@ -24,6 +24,8 @@ imports:
   - leveldb/storage
   - leveldb/table
   - leveldb/util
+- name: gopkg.in/natefinch/lumberjack.v2
+  version: a96e63847dc3c67d17befa69c303767e2f84e54f
 - name: gopkg.in/yaml.v1
   version: 9f9df34309c04878acc86042b16630b0f696e1de
 testImports: []

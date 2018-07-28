@@ -9,8 +9,9 @@ import (
 	"server/pkg/RoomManager"
 	"server/pkg/Router"
 	"server/pkg/Socket"
+	"server/pkg/Logger"
 	"syscall"
-	"time"
+    "time"
 )
 
 var painttyServer = ``
@@ -120,6 +121,8 @@ func watch(proc *os.Process, ch <-chan bool) {
 }
 
 func main() {
+    logger.SetupLogs("watchDog")
+
 	for {
 		proc := startProc()
 		<-time.After(time.Second * 10)

@@ -6,3 +6,5 @@ import:
 - package: github.com/dustin/randbo
 - package: github.com/syndtr/goleveldb
 - package: github.com/golang/snappy
+- package: gopkg.in/natefinch/lumberjack.v2
+  version: v2.1
