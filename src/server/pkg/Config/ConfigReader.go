@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-var confMap map[interface{}]interface{}
+var confMap sync.Map
 var confMutex = &sync.Mutex{}
 
 func InitConf() {
@@ -18,12 +18,10 @@ func InitConf() {
 	log.Println("workingDir:", workingDir)
 	// currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	// log.Println("currentDir:", currentDir)
-	confMap = readConfMap(filepath.Join(workingDir, "config.yml"))
-	saltFileName, ok := confMap["salt"].(string)
-	if !ok {
-		log.Println("Salt file cannot be determined by config. Using default salt.key...")
-		saltFileName = "salt.key"
-	}
+	loadConfFile(filepath.Join(workingDir, "config.yml"))
+	applyDefaultString(&confMap, "salt", "./data/salt.key")
+	stub, _ := confMap.Load("salt")
+	saltFileName, _ := stub.(string)
 
 	salt, err := readSaltFromFile(saltFileName)
 
@@ -36,65 +34,45 @@ func InitConf() {
 	for i, v := range sha512.Sum512(salt) {
 		saltHash[i] = v
 	}
-	confMap["globalSaltHash"] = saltHash
-
-	// loading reloadable ones
-	realoadbles := initReloadableConfs(GetConfig())
-
-	for k, v := range realoadbles {
-		confMap[k] = v
-	}
+	confMap.Store("globalSaltHash", saltHash)
+	applyDefaultSimpleConfigValues(&confMap)
 }
 
-func initReloadableConfs(confs map[interface{}]interface{}) map[interface{}]interface{} {
-	announcement, ok := confs["announcement"].(string)
+func applyDefaultString(confs *sync.Map, key, defaultValue string) {
+	stub, ok := confs.Load(key)
 	if !ok {
-		log.Println("Announcement not set. Using empty announcement...")
-		confs["announcement"] = ""
-	} else {
-		confs["announcement"] = announcement
+		log.Printf("%s not set. Using default value (%s)...\n", key, defaultValue)
+		confs.Store(key, defaultValue)
+		return
 	}
-
-	expiration, ok := confs["expiration"].(int)
-	if !ok {
-		log.Println("Expiration not set. Using 48 as default expiration...")
-		confs["expiration"] = 48
-	} else {
-		confs["expiration"] = expiration
+	_, ok = stub.(string)
+	if ok {
+		return
 	}
-
-	maxLoad, ok := confs["max_load"].(int)
-	if !ok {
-		log.Println("max_load not set. Using 8 as default max_load...")
-		confs["max_load"] = 8
-	} else {
-		confs["max_load"] = maxLoad
-	}
-
-	maxRoomCount, ok := confs["max_room_count"].(int)
-	if !ok {
-		log.Println("max_room_count not set. Using 1000 as default max_room_count...")
-		confs["max_room_count"] = 1000
-	} else {
-		confs["max_room_count"] = maxRoomCount
-	}
-
-	return confs
+	log.Printf("%s read failed. Using default value (%s)...\n", key, defaultValue)
+	confs.Store(key, defaultValue)
 }
 
-func GetConfig() (newConfMap map[interface{}]interface{}) {
-	confMutex.Lock()
-	defer func() {
-		confMutex.Unlock()
-	}()
-
-	newConfMap = make(map[interface{}]interface{})
-
-	for k, v := range confMap {
-		newConfMap[k] = v
+func applyDefaultInt(confs *sync.Map, key string, defaultValue int) {
+	stub, ok := confs.Load(key)
+	if !ok {
+		log.Printf("%s not set. Using default value (%d)...\n", key, defaultValue)
+		confs.Store(key, defaultValue)
+		return
 	}
+	_, ok = stub.(int)
+	if ok {
+		return
+	}
+	log.Printf("%s read failed. Using default value (%d)...\n", key, defaultValue)
+	confs.Store(key, defaultValue)
+}
 
-	return newConfMap
+func applyDefaultSimpleConfigValues(confs *sync.Map) {
+	applyDefaultString(confs, "announcement", "")
+	applyDefaultInt(confs, "expiration", 48)
+	applyDefaultInt(confs, "max_load", 8)
+	applyDefaultInt(confs, "max_room_count", 1000)
 }
 
 func createSaltFile() []byte {
@@ -142,14 +120,7 @@ func readSaltFromFile(saltFileName string) ([]byte, error) {
 	return buf, nil
 }
 
-func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
-	defer func() {
-		if r := recover(); r != nil || conf == nil {
-			conf = make(map[interface{}]interface{})
-			log.Println("Making temp config...")
-		}
-	}()
-
+func loadConfFile(confFileName string) {
 	file, err := os.Open(confFileName)
 	if _, ok := err.(*os.PathError); ok {
 		log.Println("Cannot find config file.")
@@ -159,20 +130,18 @@ func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
 			panic(err)
 		}
 	} else if err != nil {
-		log.Println("Cannot open config file.")
-		panic(err)
+		log.Panicln("Cannot open config file:", err)
 	}
 
 	defer file.Close()
 
 	fi, err := file.Stat()
 	if err != nil {
-		log.Println("Cannot read config file info.")
-		panic(err)
+		log.Panicln("Cannot read config file info.", err)
 	}
 
 	if fi.Size() <= 0 {
-		panic("Config file is empty")
+		log.Panicln("Config file is empty")
 	}
 
 	var buf = make([]byte, fi.Size())
@@ -184,9 +153,10 @@ func readConfMap(confFileName string) (conf map[interface{}]interface{}) {
 		panic(err)
 	}
 
-	conf = tmp.(map[interface{}]interface{})
-
-	return conf
+	tmpConf := tmp.(map[interface{}]interface{})
+	for key, value := range tmpConf {
+		confMap.Store(key, value)
+	}
 }
 
 func ReloadConf() {
@@ -203,21 +173,41 @@ func ReloadConf() {
 		return
 	}
 	log.Println("currentDir:", currentDir)
-	newConfMap := readConfMap(filepath.Join(currentDir, "config.yml"))
-	// load old ones
-	oldConfMap := GetConfig()
-
-	// loading reloadable ones
-	realoadbles := initReloadableConfs(newConfMap)
-
-	// merge
-	for k, v := range realoadbles {
-		oldConfMap[k] = v
-	}
-
-	// replace
-	confMutex.Lock()
-	confMap = oldConfMap
-	confMutex.Unlock()
+	loadConfFile(filepath.Join(currentDir, "config.yml"))
+	applyDefaultSimpleConfigValues(&confMap)
 	log.Println("config reloaded")
+}
+
+func ReadConfString(key, defaultValue string) string {
+	stub, ok := confMap.Load(key)
+	if !ok {
+		log.Printf("Using default value for %s\n", key)
+		return defaultValue
+	}
+	value, ok := stub.(string)
+	if !ok {
+		log.Printf("Using default value for %s\n", key)
+		return defaultValue
+	}
+	return value
+}
+
+func ReadConfInt(key string, defaultValue int) int {
+	stub, ok := confMap.Load(key)
+	if !ok {
+		log.Printf("Using default value for %s", key)
+		return defaultValue
+	}
+	value, ok := stub.(int)
+	if !ok {
+		log.Printf("Using default value for %s", key)
+		return defaultValue
+	}
+	return value
+}
+
+func ReadConfBytes(key string) []byte {
+	stub, _ := confMap.Load(key)
+	value, _ := stub.([]byte)
+	return value
 }

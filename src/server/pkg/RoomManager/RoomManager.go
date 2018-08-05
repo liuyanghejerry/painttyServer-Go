@@ -21,7 +21,7 @@ type RoomManager struct {
 	goingClose       chan bool
 	router           *Router.Router
 	rooms            sync.Map
-	currentRoomCount uint32
+	currentRoomCount int32
 	db               *leveldb.DB
 }
 
@@ -31,11 +31,7 @@ func (m *RoomManager) init() error {
 	m.router.Register("roomlist", m.handleRoomList)
 	m.router.Register("newroom", m.handleNewRoom)
 
-	ideal_port, ok := Config.GetConfig()["manager_port"].(int)
-	if ideal_port <= 0 || !ok {
-		log.Println("Manager port is not configured, using default ", ideal_port)
-		ideal_port = 18573
-	}
+	ideal_port := Config.ReadConfInt("manager_port", 18573)
 
 	var addr, err = net.ResolveTCPAddr("tcp", ":"+strconv.Itoa(ideal_port))
 	if err != nil {
@@ -74,8 +70,8 @@ func (m *RoomManager) init() error {
 }
 
 func (m *RoomManager) recovery() error {
-	dbDir, ok := Config.GetConfig()["db_dir"].(string)
-	if !ok {
+	dbDir := Config.ReadConfString("db_dir", "")
+	if len(dbDir) <= 0 {
 		log.Panicln("db_dir does not present")
 	}
 	db, err := leveldb.OpenFile(dbDir, nil)
@@ -91,10 +87,10 @@ func (m *RoomManager) recovery() error {
 		if err != nil {
 			log.Println("room is corrupted", iter.Key())
 			continue
-        }
+		}
 
 		m.rooms.Store(room.Options.Name, room)
-		atomic.AddUint32(&m.currentRoomCount, 1)
+		atomic.AddInt32(&m.currentRoomCount, -1)
 		go func(room *Room.Room, m *RoomManager) {
 			roomName := room.Options.Name
 			room.Run()
@@ -144,7 +140,7 @@ func (m *RoomManager) shortenRooms() {
 func (m *RoomManager) waitRoomClosed(roomName string) {
 	m.db.Delete([]byte("room-"+roomName), &opt.WriteOptions{})
 	m.rooms.Delete(roomName)
-	atomic.AddUint32(&m.currentRoomCount, ^uint32(0))
+	atomic.AddInt32(&m.currentRoomCount, -1)
 }
 
 func (m *RoomManager) Close() {
@@ -166,12 +162,12 @@ func (m *RoomManager) Run() (err error) {
 			conn, err := m.ln.AcceptTCP()
 			if err != nil {
 				// handle error
+                log.Println(err)
 				continue
 			}
 			go m.processClient(Socket.MakeSocketClient(conn))
 		}
 	}
-	return err
 }
 
 func (m *RoomManager) processClient(client *Socket.SocketClient) {
@@ -186,6 +182,7 @@ func (m *RoomManager) processClient(client *Socket.SocketClient) {
 			if pkg.PackageType == Socket.MANAGER {
 				err := m.router.OnMessage(pkg.Unpacked, client)
 				if err != nil {
+                    log.Println(err)
 					client.Close()
 				}
 			}

@@ -2,6 +2,7 @@ package Router
 
 import "encoding/json"
 import "sync"
+import "log"
 import "server/pkg/Socket"
 
 type RouterHandler func([]byte, *Socket.SocketClient)
@@ -23,7 +24,8 @@ func MakeRouter(key string) *Router {
 func (r *Router) OnMessage(data []byte, client *Socket.SocketClient) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = e.(error)
+            err = e.(error)
+            log.Println(err)
 		}
 	}()
 	var result map[string]interface{}

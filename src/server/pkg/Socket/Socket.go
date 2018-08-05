@@ -71,7 +71,6 @@ func (c *SocketClient) SendCommandPack(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	log.Println("SendCommandPack")
 	return c.sendPack(result)
 }
 
@@ -109,19 +108,9 @@ func (c *SocketClient) Close() {
 }
 
 func (c *SocketClient) RunReadLoop(reader *SocketReader) {
-	go func() {
-		defer func() {
-			_ = recover()
-		}()
-		for {
-			pkg, ok := <-reader.PackageChan
-			if !ok {
-				return
-			}
-			// pipe Package into public scope
-			c.packageChan <- pkg
-		}
-	}()
+	reader.RegisterHandler(func(pkg Package) {
+		c.packageChan <- pkg
+	})
 	for {
 		buffer := make([]byte, 128)
 		c.readLock.Lock()
@@ -138,6 +127,7 @@ func (c *SocketClient) RunReadLoop(reader *SocketReader) {
 		}
 		err = reader.OnData(buffer[0:outBytes])
 		if err != nil {
+            log.Println(err)
 			c.Close()
 			break
 		}
@@ -156,6 +146,6 @@ func MakeSocketClient(con *net.TCPConn) *SocketClient {
 	con.SetNoDelay(true)
 	con.SetLinger(10)
 
-	go client.RunReadLoop(&reader)
+	go client.RunReadLoop(reader)
 	return &client
 }

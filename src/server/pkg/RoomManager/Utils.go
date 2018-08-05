@@ -15,7 +15,7 @@ func parseRoomRuntimeInfo(data []byte) *Room.RoomRuntimeInfo {
 }
 
 func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
-	maxLoad := Config.GetConfig()["max_load"].(int)
+	maxLoad := Config.ReadConfInt("max_load", 8)
 	if option.MaxLoad > maxLoad || option.MaxLoad < 1 {
 		return ErrorCode.NEW_ROOM_INVALID_MAXLOAD
 	}
@@ -45,8 +45,8 @@ func (m *RoomManager) limitRoomOption(option *Room.RoomOption) int {
 		return ErrorCode.NEW_ROOM_INVALID_PWD
 	}
 
-	maxRoomCount := Config.GetConfig()["max_room_count"].(int)
-	if int(atomic.LoadUint32(&m.currentRoomCount)) >= maxRoomCount {
+	maxRoomCount := Config.ReadConfInt("max_room_count", 1000)
+	if int(atomic.LoadInt32(&m.currentRoomCount)) >= maxRoomCount {
 		return ErrorCode.NEW_ROOM_TOO_MANY_ROOMS
 	}
 	return 0

@@ -38,7 +38,7 @@ type Room struct {
 	router              *Router.Router
 	radio               *Radio.Radio
 	clients             sync.Map
-	currentClientsCount uint32
+	currentClientsCount int32
 	expiration          int
 	key                 string
 	archiveSign         string
@@ -82,11 +82,7 @@ func (m *Room) init() (err error) {
 		m.archiveSign = genArchiveSign(m.Options.Name)
 	}
 
-	data_dir, ok := Config.GetConfig()["data_dir"].(string)
-	if len(data_dir) <= 0 || !ok {
-		log.Println("Using default data path", "./data")
-		data_dir = "./data/"
-	}
+	data_dir := Config.ReadConfString("data_dir", "./data/")
 	data_path := filepath.Join(data_dir, m.archiveSign+".data")
 
 	if os.MkdirAll(path.Join(data_dir), 0666) != nil {
@@ -139,7 +135,7 @@ func (m *Room) Password() string {
 }
 
 func (m *Room) CurrentLoad() int {
-	return int(atomic.LoadUint32(&m.currentClientsCount))
+	return int(atomic.LoadInt32(&m.currentClientsCount))
 }
 
 func (m *Room) OnlineList() (list []OnlineListItem) {
@@ -180,7 +176,7 @@ func (m *Room) hasUser(u *Socket.SocketClient) bool {
 }
 
 func (m *Room) processEmptyClose() {
-	clientLen := atomic.LoadUint32(&m.currentClientsCount)
+	clientLen := atomic.LoadInt32(&m.currentClientsCount)
 	if clientLen == 0 && m.Options.EmptyClose {
 		m.Close()
 	}
@@ -193,7 +189,7 @@ func (m *Room) processExpire() {
 			return
 		case <-time.After(time.Hour):
 			if time.Since(m.lastCheck) > time.Hour*time.Duration(m.expiration) {
-				clientLen := atomic.LoadUint32(&m.currentClientsCount)
+				clientLen := atomic.LoadInt32(&m.currentClientsCount)
 				if clientLen == 0 {
 					m.Close()
 				} else {
@@ -219,7 +215,7 @@ func (m *Room) Run() error {
 			}
 			var client = Socket.MakeSocketClient(conn)
 			m.clients.Store(client, &RoomUser{})
-			atomic.AddUint32(&m.currentClientsCount, 1)
+			atomic.AddInt32(&m.currentClientsCount, 1)
 			m.processClient(client)
 		}
 	}
@@ -229,7 +225,8 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 	go func() {
 		for {
 			select {
-			case _, _ = <-m.GoingClose:
+            case _, _ = <-m.GoingClose:
+                log.Println("Room closing...")
 				m.removeAllClient()
 				return
 			case pkg, ok := <-client.GetPackageChan():
@@ -242,6 +239,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				case Socket.COMMAND:
 					err := m.router.OnMessage(pkg.Unpacked, client)
 					if err != nil {
+                        log.Println(err)
 						m.kickClient(client)
 					}
 				case Socket.DATA:
@@ -267,7 +265,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						log.Println("SendChan failed in processClient")
 					}
 				}
-			case <-time.After(time.Second * 10):
+			case <-time.After(time.Second * 30):
 				m.kickClient(client)
 				return
 			}
@@ -277,7 +275,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 
 func (m *Room) removeClient(client *Socket.SocketClient) {
 	m.clients.Delete(client)
-	atomic.AddUint32(&m.currentClientsCount, ^uint32(0))
+	atomic.AddInt32(&m.currentClientsCount, -1)
 	m.radio.RemoveClient(client)
 }
 
@@ -298,7 +296,7 @@ func (m *Room) kickClient(target *Socket.SocketClient) {
 func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
 		Options:    opt,
-		expiration: Config.GetConfig()["expiration"].(int),
+		expiration: Config.ReadConfInt("expiration", 0),
 		lastCheck:  time.Now(),
 	}
 	if err := room.init(); err != nil {

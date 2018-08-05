@@ -1,6 +1,9 @@
 package Socket
 
 import "server/pkg/Common"
+import "sync"
+
+type SocketReaderHandler func(pack Package)
 
 type Package struct {
 	PackageType int
@@ -12,19 +15,30 @@ type SocketReader struct {
 	buffer      []byte
 	dataSize    int
 	PackageChan chan Package
+	closeFlag   sync.Once
+	handler     SocketReaderHandler
 }
 
-func NewSocketReader() SocketReader {
-	reader := SocketReader{
+func NewSocketReader() *SocketReader {
+	reader := &SocketReader{
 		buffer:      make([]byte, 0),
 		dataSize:    0,
 		PackageChan: make(chan Package),
+		handler:     func(_ Package) {},
 	}
 	return reader
 }
 
-func (r *SocketReader) GetPackageChan() <-chan Package {
-	return r.PackageChan
+func (r *SocketReader) Close() {
+	r.closeFlag.Do(func() {
+		close(r.PackageChan)
+		r.buffer = make([]byte, 0)
+		r.handler = func(_ Package) {}
+	})
+}
+
+func (r *SocketReader) RegisterHandler(handler SocketReaderHandler) {
+	r.handler = handler
 }
 
 func (r *SocketReader) OnData(chunk []byte) (err error) {
@@ -79,20 +93,14 @@ func (r *SocketReader) OnData(chunk []byte) (err error) {
 				uncompressed_data,
 				repacked,
 			}
-			func() {
-				defer func() { recover() }()
-				r.PackageChan <- p
-			}()
+			go r.handler(p)
 		} else {
 			var p = Package{
 				p_header.PackType,
 				dataBlock,
 				repacked,
 			}
-			func() {
-				defer func() { recover() }()
-				r.PackageChan <- p
-			}()
+			go r.handler(p)
 		}
 
 		r.dataSize = 0

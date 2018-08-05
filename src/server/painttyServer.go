@@ -4,8 +4,8 @@ import (
 	"log"
 	"runtime"
 	"server/pkg/Config"
-	"server/pkg/RoomManager"
 	"server/pkg/Logger"
+	"server/pkg/RoomManager"
 	"time"
 )
 
@@ -20,7 +20,7 @@ func init() {
 }
 
 func main() {
-    logger.SetupLogs("painttyServer")
+	logger.SetupLogs("painttyServer")
 	Config.InitConf()
 	var manager = RoomManager.ServeManager()
 

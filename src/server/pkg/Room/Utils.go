@@ -92,7 +92,7 @@ func (m *Room) broadcastCommand(resp interface{}) {
 }
 
 func (m *Room) sendAnnouncement(client *Socket.SocketClient) {
-	msg := Config.GetConfig()["announcement"].(string)
+	msg := Config.ReadConfString("announcement", "")
 	if len(msg) <= 0 {
 		return
 	}
@@ -125,7 +125,7 @@ func (m *Room) sendExpirationMsg(client *Socket.SocketClient) {
 
 func genSignedKey(source []byte) string {
 	h := xxhash.New()
-	r := bytes.NewReader(append(source, Config.GetConfig()["globalSaltHash"].([]byte)...))
+	r := bytes.NewReader(append(source, Config.ReadConfBytes("globalSaltHash")...))
 	io.Copy(h, r)
 	hash := h.Sum64()
 	return strconv.FormatUint(hash, 32)
@@ -138,7 +138,7 @@ func (m *Room) genClientId() string {
 		timeData = []byte("asdasdasdfuweyfiaiuehmoixzwe")
 	}
 	var source = append(timeData, []byte(m.Options.Name)...)
-	source = append(source, Config.GetConfig()["globalSaltHash"].([]byte)...)
+	source = append(source, Config.ReadConfBytes("globalSaltHash")...)
 	r := bytes.NewReader(source)
 	io.Copy(h, r)
 	hash := h.Sum64()

@@ -10,7 +10,7 @@ import "github.com/syndtr/goleveldb/leveldb/opt"
 func (m *RoomManager) handleRoomList(data []byte, client *Socket.SocketClient) {
 	req := &RoomListRequest{}
 	json.Unmarshal(data, &req)
-	roomlist := make([]RoomPublicInfo, 0, atomic.LoadUint32(&m.currentRoomCount))
+	roomlist := make([]RoomPublicInfo, 0, atomic.LoadInt32(&m.currentRoomCount) + 1)
 	m.rooms.Range(func(key, value interface{}) bool {
 		roomInstance, ok := value.(*Room.Room)
 		if !ok {
@@ -83,7 +83,7 @@ func (m *RoomManager) handleNewRoom(data []byte, client *Socket.SocketClient) {
 		panic(err)
 	}
 	m.rooms.Store(room.Options.Name, room)
-	atomic.AddUint32(&m.currentRoomCount, 1)
+	atomic.AddInt32(&m.currentRoomCount, -1)
 	go func(room *Room.Room, m *RoomManager) {
 		roomName := room.Options.Name
 		room.Run()
