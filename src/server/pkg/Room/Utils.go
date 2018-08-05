@@ -9,9 +9,9 @@ import (
 	xxhash "github.com/cespare/xxhash"
 	"github.com/dustin/randbo"
 	"io"
+	"log"
 	"server/pkg/Config"
 	"server/pkg/Socket"
-	"log"
 	"strconv"
 	"time"
 )
@@ -115,11 +115,11 @@ func (m *Room) sendWelcomeMsg(client *Socket.SocketClient) {
 }
 
 func (m *Room) sendExpirationMsg(client *Socket.SocketClient) {
-    lastCheck, ok := m.lastCheck.Load().(time.Time)
+	lastCheck, ok := m.lastCheck.Load().(time.Time)
 	if !ok {
-        log.Panicln("lastCheck type assert failed.")
-    }
-    leftTime := time.Hour*time.Duration(m.expiration) - time.Since(lastCheck)
+		log.Panicln("lastCheck type assert failed.")
+	}
+	leftTime := time.Hour*time.Duration(m.expiration) - time.Since(lastCheck)
 	msg := fmt.Sprintf("这间房间还剩下约%d小时", int64(leftTime/time.Hour))
 	resp := WelcomeMsgType{
 		Content: msg + "\n",

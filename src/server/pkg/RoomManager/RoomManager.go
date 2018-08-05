@@ -162,7 +162,7 @@ func (m *RoomManager) Run() (err error) {
 			conn, err := m.ln.AcceptTCP()
 			if err != nil {
 				// handle error
-                log.Println(err)
+				log.Println(err)
 				continue
 			}
 			go m.processClient(Socket.MakeSocketClient(conn))
@@ -182,7 +182,7 @@ func (m *RoomManager) processClient(client *Socket.SocketClient) {
 			if pkg.PackageType == Socket.MANAGER {
 				err := m.router.OnMessage(pkg.Unpacked, client)
 				if err != nil {
-                    log.Println(err)
+					log.Println(err)
 					client.Close()
 				}
 			}

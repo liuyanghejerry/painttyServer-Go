@@ -24,8 +24,8 @@ func MakeRouter(key string) *Router {
 func (r *Router) OnMessage(data []byte, client *Socket.SocketClient) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-            err = e.(error)
-            log.Println(err)
+			err = e.(error)
+			log.Println(err)
 		}
 	}()
 	var result map[string]interface{}

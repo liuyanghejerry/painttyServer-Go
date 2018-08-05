@@ -187,11 +187,11 @@ func (m *Room) processExpire() {
 		select {
 		case _, _ = <-m.GoingClose:
 			return
-        case <-time.After(time.Hour):
-            lastCheck, ok := m.lastCheck.Load().(time.Time)
-            if !ok {
-                log.Panicln("lastCheck type assert failed.")
-            }
+		case <-time.After(time.Hour):
+			lastCheck, ok := m.lastCheck.Load().(time.Time)
+			if !ok {
+				log.Panicln("lastCheck type assert failed.")
+			}
 			if time.Since(lastCheck) > time.Hour*time.Duration(m.expiration) {
 				clientLen := atomic.LoadInt32(&m.currentClientsCount)
 				if clientLen == 0 {
@@ -229,8 +229,8 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 	go func() {
 		for {
 			select {
-            case _, _ = <-m.GoingClose:
-                log.Println("Room closing...")
+			case _, _ = <-m.GoingClose:
+				log.Println("Room closing...")
 				m.removeAllClient()
 				return
 			case pkg, ok := <-client.GetPackageChan():
@@ -243,7 +243,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 				case Socket.COMMAND:
 					err := m.router.OnMessage(pkg.Unpacked, client)
 					if err != nil {
-                        log.Println(err)
+						log.Println(err)
 						m.kickClient(client)
 					}
 				case Socket.DATA:
@@ -302,7 +302,7 @@ func ServeRoom(opt RoomOption) (*Room, error) {
 		Options:    opt,
 		expiration: Config.ReadConfInt("expiration", 0),
 	}
-    room.lastCheck.Store(time.Now())
+	room.lastCheck.Store(time.Now())
 	if err := room.init(); err != nil {
 		return &Room{}, err
 	}
@@ -318,7 +318,7 @@ func RecoverRoom(info *RoomRuntimeInfo) (r *Room, err error) {
 		key:         info.Key,
 		Options:     info.Options,
 	}
-    room.lastCheck.Store(time.Now())
+	room.lastCheck.Store(time.Now())
 	if err := room.init(); err != nil {
 		return &Room{}, err
 	}

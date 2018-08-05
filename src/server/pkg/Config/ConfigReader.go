@@ -167,13 +167,13 @@ func ReloadConf() {
 		return
 	}
 	log.Println("workingDir:", workingDir)
-	currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
-	if err != nil {
-		log.Println("reloading config failed")
-		return
-	}
-	log.Println("currentDir:", currentDir)
-	loadConfFile(filepath.Join(currentDir, "config.yml"))
+	// currentDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	// if err != nil {
+	// 	log.Println("reloading config failed")
+	// 	return
+	// }
+	// log.Println("currentDir:", currentDir)
+	loadConfFile(filepath.Join(workingDir, "config.yml"))
 	applyDefaultSimpleConfigValues(&confMap)
 	log.Println("config reloaded")
 }

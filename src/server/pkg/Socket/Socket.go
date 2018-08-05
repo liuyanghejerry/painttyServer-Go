@@ -118,7 +118,7 @@ func (c *SocketClient) RunReadLoop(reader *SocketReader) {
 		outBytes, err := c.con.Read(buffer)
 		c.readLock.Unlock()
 		if err != nil {
-            reader.UnregisterHandler()
+			reader.UnregisterHandler()
 			c.Close()
 			break
 		}
@@ -128,8 +128,8 @@ func (c *SocketClient) RunReadLoop(reader *SocketReader) {
 		}
 		err = reader.OnData(buffer[0:outBytes])
 		if err != nil {
-            log.Println(err)
-            reader.UnregisterHandler()
+			log.Println(err)
+			reader.UnregisterHandler()
 			c.Close()
 			break
 		}
