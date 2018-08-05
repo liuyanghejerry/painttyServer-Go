@@ -41,6 +41,10 @@ func (r *SocketReader) RegisterHandler(handler SocketReaderHandler) {
 	r.handler = handler
 }
 
+func (r *SocketReader) UnregisterHandler() {
+	r.handler = func(_ Package) {}
+}
+
 func (r *SocketReader) OnData(chunk []byte) (err error) {
 	err = nil
 	r.buffer = append(r.buffer, chunk...)

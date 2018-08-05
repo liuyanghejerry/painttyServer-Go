@@ -241,7 +241,7 @@ func (m *Room) handleCheckout(data []byte, client *Socket.SocketClient) {
 		return
 	}
 
-	m.lastCheck = time.Now()
+	m.lastCheck.Store(time.Now())
 
 	resp.Result = true
 	m.sendCommandTo(resp, client)

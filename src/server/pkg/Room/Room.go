@@ -44,7 +44,7 @@ type Room struct {
 	archiveSign         string
 	port                uint16
 	Options             RoomOption
-	lastCheck           time.Time
+	lastCheck           atomic.Value
 }
 
 func (m *Room) Close() {
@@ -187,8 +187,12 @@ func (m *Room) processExpire() {
 		select {
 		case _, _ = <-m.GoingClose:
 			return
-		case <-time.After(time.Hour):
-			if time.Since(m.lastCheck) > time.Hour*time.Duration(m.expiration) {
+        case <-time.After(time.Hour):
+            lastCheck, ok := m.lastCheck.Load().(time.Time)
+            if !ok {
+                log.Panicln("lastCheck type assert failed.")
+            }
+			if time.Since(lastCheck) > time.Hour*time.Duration(m.expiration) {
 				clientLen := atomic.LoadInt32(&m.currentClientsCount)
 				if clientLen == 0 {
 					m.Close()
@@ -297,8 +301,8 @@ func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
 		Options:    opt,
 		expiration: Config.ReadConfInt("expiration", 0),
-		lastCheck:  time.Now(),
 	}
+    room.lastCheck.Store(time.Now())
 	if err := room.init(); err != nil {
 		return &Room{}, err
 	}
@@ -313,8 +317,8 @@ func RecoverRoom(info *RoomRuntimeInfo) (r *Room, err error) {
 		archiveSign: info.ArchiveSign,
 		key:         info.Key,
 		Options:     info.Options,
-		lastCheck:   time.Now(),
 	}
+    room.lastCheck.Store(time.Now())
 	if err := room.init(); err != nil {
 		return &Room{}, err
 	}

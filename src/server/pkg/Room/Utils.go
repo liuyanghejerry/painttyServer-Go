@@ -11,7 +11,7 @@ import (
 	"io"
 	"server/pkg/Config"
 	"server/pkg/Socket"
-	//"log"
+	"log"
 	"strconv"
 	"time"
 )
@@ -115,7 +115,11 @@ func (m *Room) sendWelcomeMsg(client *Socket.SocketClient) {
 }
 
 func (m *Room) sendExpirationMsg(client *Socket.SocketClient) {
-	leftTime := time.Hour*time.Duration(m.expiration) - time.Since(m.lastCheck)
+    lastCheck, ok := m.lastCheck.Load().(time.Time)
+	if !ok {
+        log.Panicln("lastCheck type assert failed.")
+    }
+    leftTime := time.Hour*time.Duration(m.expiration) - time.Since(lastCheck)
 	msg := fmt.Sprintf("这间房间还剩下约%d小时", int64(leftTime/time.Hour))
 	resp := WelcomeMsgType{
 		Content: msg + "\n",
