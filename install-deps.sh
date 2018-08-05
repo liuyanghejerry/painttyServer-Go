@@ -1,4 +1,4 @@
 #!/bin/sh
 export GOPATH=`pwd`
-cd src/server
+cd ./src/server
 glide i
