@@ -109,6 +109,11 @@ func (c *SocketClient) Close() {
 
 func (c *SocketClient) RunReadLoop(reader *SocketReader) {
 	reader.RegisterHandler(func(pkg Package) {
+		defer func() {
+			if x := recover(); x != nil {
+				log.Printf("recovered panic: %v", x)
+			}
+		}()
 		c.packageChan <- pkg
 	})
 	for {

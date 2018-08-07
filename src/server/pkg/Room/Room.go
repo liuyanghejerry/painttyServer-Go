@@ -248,6 +248,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 					}
 				case Socket.DATA:
 					if !m.hasUser(client) {
+						m.removeClient(client)
 						return
 					}
 					select {
@@ -259,6 +260,7 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 					}
 				case Socket.MESSAGE:
 					if !m.hasUser(client) {
+						m.removeClient(client)
 						return
 					}
 					select {
