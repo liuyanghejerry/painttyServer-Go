@@ -8,6 +8,7 @@ import (
 	"net"
 	"server/pkg/Config"
 	"server/pkg/Room"
+	"server/pkg/Hub"
 	"server/pkg/Router"
 	"server/pkg/Socket"
 	"strconv"
@@ -171,23 +172,23 @@ func (m *RoomManager) Run() (err error) {
 }
 
 func (m *RoomManager) processClient(client *Socket.SocketClient) {
-	for {
-		select {
-		case _, _ = <-m.goingClose:
-			return
-		case pkg, ok := <-client.GetPackageChan():
-			if !ok {
+    handler := Hub.Handler{
+        Name: "roomManagerProcessClient",
+        Callback: func(content interface{}) {
+            pkg, ok := content.(Socket.Package)
+            if !ok {
 				return
-			}
-			if pkg.PackageType == Socket.MANAGER {
+            }
+            if pkg.PackageType == Socket.MANAGER {
 				err := m.router.OnMessage(pkg.Unpacked, client)
 				if err != nil {
 					log.Println(err)
 					client.Close()
 				}
 			}
-		}
+        },
 	}
+    client.Sub("package", handler)
 }
 
 func ServeManager() *RoomManager {

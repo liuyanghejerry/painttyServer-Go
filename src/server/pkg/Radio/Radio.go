@@ -3,6 +3,7 @@ package Radio
 import "time"
 import "server/pkg/Socket"
 import "server/pkg/BufferedFile"
+import "server/pkg/Hub"
 import "sync"
 
 type RadioTaskList struct {
@@ -50,9 +51,10 @@ type RadioSingleSendPart struct {
 }
 
 type Radio struct {
+    Hub.Hub
 	clients        map[*Socket.SocketClient]*RadioClient
 	file           *BufferedFile.BufferedFile
-	GoingClose     chan bool
+	goingClose     chan bool
 	SingleSendChan chan RadioSingleSendPart
 	SendChan       chan RadioSendPart
 	WriteChan      chan RadioSendPart
@@ -61,7 +63,7 @@ type Radio struct {
 }
 
 func (r *Radio) Close() {
-	close(r.GoingClose)
+	close(r.goingClose)
 	close(r.SingleSendChan)
 	close(r.SendChan)
 	close(r.WriteChan)
@@ -135,15 +137,18 @@ func (r *Radio) AddClient(client *Socket.SocketClient, start, length int64) {
 }
 
 func (r *Radio) processClient(client *Socket.SocketClient, radioClient *RadioClient) {
-	clientCloseChan := make(chan bool)
-	client.RegisterCloseCallback(func() {
-		clientCloseChan <- true
-	})
+    clientCloseChan := make(chan[] bool)
+    handler := Hub.Handler{
+        Name: "radioProcessClient",
+        Callback: func(_ interface{}) {
+            r.RemoveClient(client)
+			close(clientCloseChan)
+        },
+	}
+    client.Sub("close", handler)
 	for {
 		select {
 		case _, _ = <-clientCloseChan:
-			r.RemoveClient(client)
-			close(clientCloseChan)
 			return
 		case chunk, ok := <-radioClient.sendChan:
 			if ok {
@@ -162,8 +167,9 @@ func (r *Radio) processClient(client *Socket.SocketClient, radioClient *RadioCli
 		case <-time.After(time.Millisecond * 100):
 			err := fetchAndSend(client, radioClient.list, r.file)
 			if err != nil {
-				r.RemoveClient(client)
-				return
+				// r.RemoveClient(client)
+                // return
+                continue
 			}
 		}
 	}
@@ -260,7 +266,7 @@ func (r *Radio) write(data []byte) {
 func (r *Radio) run() {
 	for {
 		select {
-		case _, _ = <-r.GoingClose:
+		case _, _ = <-r.goingClose:
 			return
 		case part, ok := <-r.SendChan:
 			if !ok {
@@ -292,9 +298,10 @@ func MakeRadio(fileName, sign string) (*Radio, error) {
 		return &Radio{}, err
 	}
 	var radio = &Radio{
+        Hub: Hub.MakeHub(),
 		clients:        make(map[*Socket.SocketClient]*RadioClient),
 		file:           file,
-		GoingClose:     make(chan bool),
+		goingClose:     make(chan bool),
 		SingleSendChan: make(chan RadioSingleSendPart),
 		SendChan:       make(chan RadioSendPart),
 		WriteChan:      make(chan RadioSendPart),

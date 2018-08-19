@@ -10,6 +10,7 @@ import (
 	"server/pkg/RoomManager"
 	"server/pkg/Router"
 	"server/pkg/Socket"
+	"server/pkg/Hub"
 	"syscall"
 	"time"
 )
@@ -69,14 +70,16 @@ func loop(client *Socket.SocketClient) <-chan bool {
 	seemsDead := make(chan bool)
 
 	go func(client *Socket.SocketClient) {
-		clientCloseChan := make(chan bool)
-		client.RegisterCloseCallback(func() {
-			clientCloseChan <- true
-		})
+        clientCloseChan := make(chan bool)
+        client.Sub("close", Hub.Handler{
+            Name: "watchDogLoopHandler",
+            Callback: func(_ interface{}) {
+				close(clientCloseChan)
+            },
+        })
 		for {
 			select {
 			case _, _ = <-clientCloseChan:
-				close(clientCloseChan)
 				return
 			case <-time.After(time.Second * 10):
 				sendMessage(client)
@@ -85,9 +88,20 @@ func loop(client *Socket.SocketClient) <-chan bool {
 	}(client)
 
 	go func(client *Socket.SocketClient, dead chan<- bool) {
+        packageChan := make(chan Socket.Package)
+        client.Sub("package", Hub.Handler{
+            Name: "watchDogLoopHandler",
+            Callback: func(content interface{}) {
+                pkg, ok := content.(Socket.Package)
+                if !ok {
+					return
+				}
+				packageChan <- pkg
+            },
+        })
 		for {
 			select {
-			case pkg, ok := <-client.GetPackageChan():
+			case pkg, ok := <-packageChan:
 				if !ok {
 					return
 				}

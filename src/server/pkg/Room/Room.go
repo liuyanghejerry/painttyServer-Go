@@ -10,7 +10,8 @@ import (
 	"server/pkg/Config"
 	"server/pkg/Radio"
 	"server/pkg/Router"
-	"server/pkg/Socket"
+    "server/pkg/Socket"
+    "server/pkg/Hub"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -33,6 +34,7 @@ type RoomUser struct {
 }
 
 type Room struct {
+	Hub.Hub
 	ln                  *net.TCPListener
 	GoingClose          chan bool
 	router              *Router.Router
@@ -226,20 +228,14 @@ func (m *Room) Run() error {
 }
 
 func (m *Room) processClient(client *Socket.SocketClient) {
-	go func() {
-		for {
-			select {
-			case _, _ = <-m.GoingClose:
-				log.Println("Room closing...")
-				m.removeAllClient()
-				return
-			case pkg, ok := <-client.GetPackageChan():
-				if !ok {
-					m.removeClient(client)
-					m.processEmptyClose()
-					return
-				}
-				switch pkg.PackageType {
+    client.Sub("package", Hub.Handler{
+        Name: "processClientHandler",
+        Callback: func(content interface{}) {
+            pkg, ok := content.(Socket.Package)
+            if !ok {
+				m.kickClient(client)
+            }
+            switch pkg.PackageType {
 				case Socket.COMMAND:
 					err := m.router.OnMessage(pkg.Unpacked, client)
 					if err != nil {
@@ -271,12 +267,21 @@ func (m *Room) processClient(client *Socket.SocketClient) {
 						log.Println("SendChan failed in processClient")
 					}
 				}
-			case <-time.After(time.Second * 30):
-				m.kickClient(client)
-				return
-			}
-		}
-	}()
+        },
+	})
+    client.Sub("close", Hub.Handler{
+        Name: "processClientHandler",
+        Callback: func(_ interface{}) {
+            m.removeClient(client)
+        },
+	})
+    m.Sub("close", Hub.Handler{
+        Name: "closeHandler",
+        Callback: func(_ interface{}) {
+            log.Println("Room closing...")
+            m.removeAllClient()
+        },
+    })
 }
 
 func (m *Room) removeClient(client *Socket.SocketClient) {
@@ -301,12 +306,15 @@ func (m *Room) kickClient(target *Socket.SocketClient) {
 
 func ServeRoom(opt RoomOption) (*Room, error) {
 	var room = Room{
+        Hub: Hub.MakeHub(),
 		Options:    opt,
 		expiration: Config.ReadConfInt("expiration", 0),
 	}
 	room.lastCheck.Store(time.Now())
 	if err := room.init(); err != nil {
-		return &Room{}, err
+		return &Room{
+            Hub: Hub.MakeHub(),
+        }, err
 	}
 
 	return &room, nil
@@ -314,6 +322,7 @@ func ServeRoom(opt RoomOption) (*Room, error) {
 
 func RecoverRoom(info *RoomRuntimeInfo) (r *Room, err error) {
 	var room = Room{
+        Hub: Hub.MakeHub(),
 		port:        info.Port,
 		expiration:  info.Expiration,
 		archiveSign: info.ArchiveSign,
@@ -322,7 +331,9 @@ func RecoverRoom(info *RoomRuntimeInfo) (r *Room, err error) {
 	}
 	room.lastCheck.Store(time.Now())
 	if err := room.init(); err != nil {
-		return &Room{}, err
+		return &Room{
+            Hub: Hub.MakeHub(),
+        }, err
 	}
 
 	defer func() {
